@@ -2,7 +2,7 @@
 
 A complete static educational website with responsive layouts, five learning-stage tabs, free study resources and a browser-only enquiry draft tool.
 
-**Status: prepared for deployment, not published.** No domain has been registered. The contact email is intentionally blank. The site starts in preview mode with search indexing disabled by metadata. A public preview is not private or password protected.
+**Status: public preview at https://dr-peter-wade.github.io/.** No custom domain has been registered. The contact email is intentionally blank, enquiries are disabled, and search indexing is discouraged by metadata. A public preview is not private or password protected.
 
 ## Open the website
 
@@ -16,7 +16,7 @@ Then visit `http://127.0.0.1:8000/`. On Windows, `py` may replace `python3`.
 
 ## Publish to GitHub Pages
 
-Use [the deployment guide](docs/DEPLOYMENT.md). The included GitHub Actions workflow validates the site and uploads **only the `site/` directory**. It runs on pushes to `main` and on manual dispatch. Set the repository's **Settings > Pages > Source** to **GitHub Actions**.
+The [organisation repository](https://github.com/dr-peter-wade/dr-peter-wade.github.io) uses GitHub Actions as its Pages source. Its workflow validates the site and uploads **only the `site/` directory**. It runs on pushes to `main` and on manual dispatch. Use [the deployment guide](docs/DEPLOYMENT.md) to update it from this shared workspace.
 
 Before a public launch, complete [the launch checklist](docs/LAUNCH-CHECKLIST.md), then configure Peter's actual approved email and the actual HTTPS homepage URL:
 
@@ -27,7 +27,7 @@ python3 tools/check_site.py --release
 
 Replace both capitalised placeholders. The script rejects invalid values. It updates the contact configuration, canonical/share metadata, sitemap and robots settings together. **It does not upload files, configure DNS or buy a domain.**
 
-For an online review before approval, deploy the unchanged preview. To restore preview mode later:
+The current online review remains in preview mode. To restore preview mode after a later launch:
 
 ```sh
 python3 tools/configure.py --preview

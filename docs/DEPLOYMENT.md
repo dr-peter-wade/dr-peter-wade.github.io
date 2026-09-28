@@ -1,6 +1,6 @@
 # Deployment guide
 
-Prepared 28 September 2026. This package is not yet online. It contains no domain registration and no verified contact email.
+Public preview deployed 28 September 2026 at https://dr-peter-wade.github.io/ from https://github.com/dr-peter-wade/dr-peter-wade.github.io. It has no custom domain or verified public contact email.
 
 ## 1. Review the website
 
@@ -14,27 +14,20 @@ The included workflow targets GitHub Pages. GitHub's policy restricts sites used
 
 Primary source: [GitHub Pages limits](https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits).
 
-## 3. Create an empty GitHub repository
+## 3. Update the organisation repository
 
-Use the account that should own the site. A suggested repository name is `peter-wade`. Do not assume a particular username is available.
-
-Public repositories can use GitHub Pages on GitHub Free. Private-repository availability depends on the plan. Never use a public repository to store personal documents or secrets.
-
-Create an **empty** repository first, without generating a README or adding a licence. Then, inside the unzipped `peter-wade-website` folder, run:
+The public repository `dr-peter-wade/dr-peter-wade.github.io` already exists. Never add personal documents or secrets to it. The website also lives under `education_assistance/peter-wade-website/` in the shared `peterwade` workspace. To push changes from that workspace, commit the relevant website files on its `main` branch, then split and push only this directory:
 
 ```sh
-git init -b main
-git add .
-git commit -m "Add Peter Wade educational website"
-git remote add origin https://github.com/YOUR-USERNAME/peter-wade.git
-git push -u origin main
+cd /path/to/peterwade
+python3 education_assistance/peter-wade-website/tools/check_site.py
+git add education_assistance/peter-wade-website
+git commit -m "Update Peter Wade educational website"
+site_commit=$(git subtree split --prefix=education_assistance/peter-wade-website HEAD)
+git push git@github.com:dr-peter-wade/dr-peter-wade.github.io.git "${site_commit}:refs/heads/main"
 ```
 
-Replace `YOUR-USERNAME` with the actual owner. Authenticate with GitHub's supported login, SSH or token method. Never put credentials in website files.
-
-GitHub Desktop can publish this folder instead. Include the hidden `.github` folder. Do not upload only the ZIP: GitHub Pages needs the extracted website files and workflow.
-
-Repository root must look like this, without an extra nesting level:
+Use SSH authentication with access to the organisation. The split excludes the geochemical consulting project and the source ZIP. The published repository root must look like this, without an extra nesting level:
 
 ```text
 .github/workflows/deploy.yml
@@ -46,21 +39,15 @@ README.md
 docs/...
 ```
 
-## 4. Enable Pages deployment
+## 4. Verify Pages deployment
 
-Open the repository's **Settings > Pages**. Under **Build and deployment**, select **GitHub Actions** as the source.
+The repository's **Settings > Pages > Build and deployment > Source** is set to **GitHub Actions**. Check this setting if deployment stops working.
 
-Then open **Actions > Deploy Peter Wade educational site > Run workflow**, selecting `main`. A first push may fail when Pages has not yet been enabled; enable it, then rerun. Future pushes to `main` trigger deployment automatically.
+After pushing, open **Actions > Deploy Peter Wade educational site** and confirm the run succeeds. You can also use **Run workflow** on `main` to retry. Future pushes to `main` trigger deployment automatically.
 
 The workflow validates local files, uploads only `site/`, and deploys that artifact to Pages. It requires `contents: read`, `pages: write` and `id-token: write` permissions. Account or organisation policies may need an administrator's approval.
 
-The Actions run and Pages settings show the real published URL. For a project repository, it usually follows:
-
-```text
-https://YOUR-USERNAME.github.io/peter-wade/
-```
-
-For an account site, the repository must be named `YOUR-USERNAME.github.io`; its default address is the account site's root. Relative links in this package support both forms.
+The Actions run and Pages settings show the published URL: `https://dr-peter-wade.github.io/`. The repository is an organisation site, so the address has no project path.
 
 Sources: [Creating a Pages site](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site), [Custom workflows](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
 
@@ -77,13 +64,7 @@ These are placeholders, not an email address or domain to use. Example URL shape
 
 The configuration script performs no network operations. It writes public email configuration, canonical URLs, social-sharing URLs, robots metadata and a sitemap. It updates the 404 homepage link to an absolute address. It does not buy a domain, publish to GitHub, or make the privacy statement legally complete.
 
-To deploy your approved changes:
-
-```sh
-git add site
-git commit -m "Configure approved public contact and canonical domain"
-git push
-```
+To deploy approved changes from the shared workspace, use the commit, subtree split and push commands in section 3.
 
 For a preview, leave `launchApproved` false. To restore preview mode use `python3 tools/configure.py --preview`, commit and push. This does not revoke copies already made by visitors or search engines.
 
