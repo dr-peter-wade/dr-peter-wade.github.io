@@ -1,0 +1,26 @@
+PETER WADE | BEFORE YOU MODEL
+Preparation prompts, not validation or technical sign-off.
+
+1. PURPOSE
+What question should the model answer? Which output matters?
+
+2. SYSTEM
+Define boundaries, phases, flows, spatial extent and time scale.
+
+3. INPUTS
+Record value, unit, source and uncertainty. Separate measured, assumed and fitted inputs.
+
+4. PROCESSES
+Which mechanisms are included or excluded? Where relevant, consider equilibrium, kinetics, transport and database choices.
+
+5. CHECKS
+Check units, conservation, warnings and limiting cases. Keep calibration separate from independent evaluation.
+
+6. SENSITIVITY AND REPRODUCIBILITY
+Vary uncertain inputs and assumptions. Record software version, database, input files and changes.
+
+Final question: What would need to change for this conclusion to no longer hold?
+
+Official software resource: https://www.usgs.gov/software/phreeqc-version-3
+Free educational checklist for personal study. Follow course and project guidance.
+28 September 2026
