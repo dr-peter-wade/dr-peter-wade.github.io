@@ -4,7 +4,11 @@
   const config = window.PETER_WADE_SITE || {};
   const email = typeof config.contactEmail === 'string' ? config.contactEmail.trim() : '';
   const emailReady = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email) && !/[\r\n?#]/.test(email);
-  const ready = config.launchApproved === true && emailReady;
+  const contactReady = config.launchApproved === true && emailReady;
+  const sendReady = config.launchApproved === true && config.enquiryServiceEnabled === true &&
+    typeof config.enquiryEndpoint === 'string' && config.enquiryEndpoint.startsWith('https://') &&
+    typeof config.turnstileSiteKey === 'string' && Boolean(config.turnstileSiteKey);
+  const ready = contactReady || sendReady;
   document.querySelectorAll('[data-year]').forEach(el => { el.textContent = String(new Date().getFullYear()); });
 
   const menu = document.querySelector('.menu-toggle');
@@ -42,13 +46,13 @@
   }
   document.querySelectorAll('[data-select-level]').forEach(link=>link.addEventListener('click',()=>{const field=document.getElementById('enquiry-level');if(field)field.value=link.dataset.selectLevel;}));
   document.querySelectorAll('[data-print]').forEach(button=>button.addEventListener('click',()=>window.print()));
-  document.querySelectorAll('[data-contact-email]').forEach(el=>{if(ready){el.textContent=email;el.href='mailto:'+email;}else{el.textContent='Contact details are pending in this preview.';el.removeAttribute('href');}});
+  document.querySelectorAll('[data-contact-email]').forEach(el=>{if(contactReady){el.textContent=email;el.href='mailto:'+email;}else{el.textContent='Contact details are pending in this preview.';el.removeAttribute('href');}});
   document.querySelectorAll('[data-preview-only]').forEach(el=>{el.hidden=ready;});
   const status=document.getElementById('contact-status');
   const direct=document.getElementById('direct-email');
   if(ready){
-    if(status)status.textContent='This enquiry tool prepares an email draft. Nothing is sent or stored by the website. Scope, fees and availability are agreed separately.';
-    if(direct){direct.textContent=email;direct.href='mailto:'+email;direct.hidden=false;}
+    if(status)status.textContent=sendReady?'Prepare a draft, then review and send it after verification. Scope, fees and availability are agreed separately.':'This enquiry tool prepares an email draft. Nothing is sent or stored by the website. Scope, fees and availability are agreed separately.';
+    if(direct && contactReady){direct.textContent=email;direct.href='mailto:'+email;direct.hidden=false;}
   }
 
   const form=document.getElementById('enquiry-form');
@@ -57,6 +61,42 @@
   const draftText=document.getElementById('draft-text');
   const draftStatus=document.getElementById('draft-status');
   const emailLink=document.getElementById('open-email');
+  let sendButton;
+  let turnstileWidget;
+  if(sendReady){
+    const verification=document.createElement('div');
+    verification.className='enquiry-verification';
+    const challenge=document.createElement('div');
+    verification.appendChild(challenge);
+    sendButton=document.createElement('button');
+    sendButton.type='button';
+    sendButton.className='button primary';
+    sendButton.textContent='Send enquiry to Peter';
+    sendButton.hidden=true;
+    verification.appendChild(sendButton);
+    panel.appendChild(verification);
+    const script=document.createElement('script');
+    script.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    script.async=true;
+    script.onload=()=>{turnstileWidget=window.turnstile.render(challenge,{sitekey:config.turnstileSiteKey,action:'enquiry'});};
+    script.onerror=()=>{draftStatus.textContent='Verification is unavailable. Your draft has not been sent.';};
+    document.head.appendChild(script);
+    sendButton.addEventListener('click',async()=>{
+      const token=turnstileWidget===undefined?'':window.turnstile.getResponse(turnstileWidget);
+      if(!token){draftStatus.textContent='Complete the verification before sending.';return;}
+      sendButton.disabled=true;
+      draftStatus.textContent='Sending your enquiry…';
+      try{
+        const response=await fetch(config.enquiryEndpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({site:'education',name:form.elements.namedItem('name').value,email:form.elements.namedItem('email').value,message:draftText.value,token,fax_organisation:''})});
+        if(!response.ok)throw new Error('Delivery not confirmed');
+        draftStatus.textContent='Your enquiry has been sent. Please allow time for a reply.';
+      }catch(_error){
+        draftStatus.textContent='Delivery was not confirmed. Please keep or copy your draft and try again later.';
+        sendButton.disabled=false;
+        window.turnstile.reset(turnstileWidget);
+      }
+    });
+  }
   // Keep disabled until our preventDefault handler is attached. With JavaScript disabled,
   // personal data cannot accidentally be submitted in the URL to a static host.
   form.addEventListener('submit',event=>{
@@ -70,14 +110,18 @@
     const text=['Hello Peter,','',get('message'),'','My details:','Name: '+get('name'),'Email: '+get('email'),'Learning stage: '+label,'Subject / topic: '+get('topic'),'Enquiry made by an adult or parent/guardian.','','Thank you,',get('name')].join('\n');
     draftText.value=text;
     panel.hidden=false;
-    if(ready){
+    if(contactReady){
       emailLink.href='mailto:'+email+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(text);
       emailLink.hidden=false;
       draftStatus.textContent='Your draft is ready. It has not been sent. Open your email app to review it and send it to '+email+'. You can also copy the text below.';
+    }else if(sendReady){
+      emailLink.removeAttribute('href');emailLink.hidden=true;
+      draftStatus.textContent='Your draft is ready. Review it, complete verification and press Send. Nothing has been sent yet.';
     }else{
       emailLink.removeAttribute('href');emailLink.hidden=true;
       draftStatus.textContent='Preview only: Peter’s contact address has not been connected. Nothing has been sent. You can copy this draft, but enquiries are not open through this preview.';
     }
+    if(sendButton){sendButton.hidden=false;sendButton.disabled=false;}
     panel.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'nearest'});
   });
   document.getElementById('enquiry-fields').disabled=false;

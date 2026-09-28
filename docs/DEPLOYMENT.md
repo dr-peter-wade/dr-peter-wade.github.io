@@ -20,6 +20,7 @@ The public repository `dr-peter-wade/dr-peter-wade.github.io` already exists. Ne
 
 ```sh
 cd /path/to/peterwade
+python3 education_assistance/peter-wade-website/tools/build.py --check
 python3 education_assistance/peter-wade-website/tools/check_site.py
 git add education_assistance/peter-wade-website
 git commit -m "Update Peter Wade educational website"
@@ -68,7 +69,7 @@ To deploy approved changes from the shared workspace, use the commit, subtree sp
 
 For a preview, leave `launchApproved` false. To restore preview mode use `python3 tools/configure.py --preview`, commit and push. This does not revoke copies already made by visitors or search engines.
 
-The browser form prepares a draft and exposes a `mailto:` link only after approval. It does not submit messages to a server. Test the actual email app and mailbox delivery yourself after launch. No booking system or payment gateway is included.
+The browser form currently prepares a draft and exposes a `mailto:` link only after approval. A separate, disabled Cloudflare Worker in the parent workspace can optionally send verified enquiries after sender credentials, a Turnstile widget, privacy wording and real delivery tests are complete. See `email_service/README.md` in the parent workspace. No booking system or payment gateway is included.
 
 ## 6. Connect an owned domain
 
@@ -102,7 +103,7 @@ Source: [Cloudflare static HTML deployment](https://developers.cloudflare.com/pa
 
 **Styles or resources missing:** publish the entire `site/` folder, not only `index.html`.
 
-**Enquiries do not send automatically:** this is intentional. The tool prepares a draft; the visitor sends it from their own email application. Confirm the real address, review the draft and send a test email yourself.
+**Enquiries do not send automatically:** the central Worker and frontend switch are disabled in this preview. The draft flow needs the visitor's email application. Confirm the approved address and test delivery before changing either mode.
 
 **Nothing appears in search:** preview mode uses `noindex`; use the configuration script only after approval. Search indexing is never guaranteed or instant.
 

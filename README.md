@@ -1,6 +1,6 @@
 # Peter Wade | Science, made clearer
 
-A complete static educational website with responsive layouts, five learning-stage tabs, free study resources and a browser-only enquiry draft tool.
+A static educational website with responsive layouts, five learning-stage tabs, free study resources and a browser-only enquiry draft tool. An optional centrally routed enquiry service exists in the parent workspace, but is disabled in this preview.
 
 **Status: public preview at https://dr-peter-wade.github.io/.** No custom domain has been registered. The contact email is intentionally blank, enquiries are disabled, and search indexing is discouraged by metadata. A public preview is not private or password protected.
 
@@ -51,6 +51,7 @@ Official policies and instructions are linked in the deployment guide. Checked 2
 | `site/site-config.js` | Public contact and preview configuration |
 | `.github/workflows/deploy.yml` | GitHub Pages deployment workflow |
 | `tools/configure.py` | Metadata and launch configuration, Python standard library only |
+| `tools/build.py` | Render Peter's profile and enquiry settings from `../../shared_data/peter.json` in the parent workspace |
 | `tools/check_site.py` | Offline local-link, metadata and configuration checks |
 | `docs/` | Deployment, domain, content and launch notes |
 
@@ -58,12 +59,12 @@ There is no npm install, framework, build service, database, analytics script, r
 
 ## Contact behaviour
 
-The form **prepares a draft**. It does not send email and has no form service or database behind it. With approved contact configuration, the visitor can open their own email app, review the draft and press Send there. A working email app is required for that route; copying the draft and using the displayed address is the fallback. Test this on actual devices before launch. No email delivery has been tested in this package.
+The preview form **prepares a draft**; it does not send email. The optional shared Cloudflare Worker can send a verified enquiry to this site's fixed recipient after owner approval, credential setup, privacy review and live testing. See `../../email_service/README.md` in the parent workspace. With approved public contact configuration, the visitor can alternatively open their own email app and send the draft there. No automatic delivery has been tested.
 
 The site code does not save form values in cookies or browser storage. Browsers and email apps may provide their own autofill, history or storage. Hosting providers may keep technical access logs. Never put sensitive student, health or confidential research information in an initial enquiry.
 
 ## Editing
 
-Change text in the HTML files, colour and layout in `site/assets/styles.css`, behaviour in `site/assets/main.js`. Run `python3 tools/check_site.py` after editing. Do not add private CVs, email archives, identity documents, credentials or confidential client research to this repository.
+Change site-specific text in the HTML files, shared Peter Wade profile and research data in `../../shared_data/peter.json`, colour and layout in `site/assets/styles.css`, and behaviour in `site/assets/main.js`. From the parent workspace, run `python3 education_assistance/peter-wade-website/tools/build.py` and then `python3 education_assistance/peter-wade-website/tools/check_site.py`. The public organisation repository contains generated output but not the shared JSON; use the parent workspace to regenerate it. Do not add private CVs, email archives, identity documents, credentials or confidential client research to this repository.
 
 The visual branding and learning resources are original draft content prepared for this project. Peter must review all offers and factual claims before use. The three linked research publications/software resources remain the work of their respective authors and publishers; links do not imply endorsement. No third-party font files are included.

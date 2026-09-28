@@ -3,5 +3,8 @@
 window.PETER_WADE_SITE = Object.freeze({
   "contactEmail": "",
   "siteUrl": "https://dr-peter-wade.github.io/",
-  "launchApproved": false
+  "launchApproved": false,
+  "enquiryEndpoint": "https://peter-wade-enquiries.tppricet.workers.dev/api/enquiry",
+  "turnstileSiteKey": "",
+  "enquiryServiceEnabled": false
 });
