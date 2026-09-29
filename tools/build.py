@@ -26,6 +26,7 @@ def replace_block(source: str, marker: str, content: str) -> str:
 
 def render(data: dict) -> str:
     profile = data["education_profile"]
+    professional = data["professional_profile"]
     publications = {item["url"]: item for item in data["publications"]}
     featured = [publications[url] for url in profile["featured_publication_urls"]]
     escape = html.escape
@@ -36,11 +37,21 @@ def render(data: dict) -> str:
         f'{escape(item["journal"])} ({escape(str(item["year"]))}) ↗</a>'
         for item in featured
     )
+    qualifications = "; ".join(
+        f'{item["award"]} ({item["year"]}), {item["institution"]}'
+        for item in professional["qualifications"]
+    )
+    former_roles = "; ".join(
+        f'{item["title"]} at {item["organisation"]}'
+        for item in professional["former_roles"]
+    )
     profile_html = (
         f'<span class="name-label">{escape(data["person"].upper())}</span>'
         f'<p class="large-copy">{escape(profile["heading"])}</p>'
         f'<p>{escape(profile["experience"])}</p>'
         f'<p>{escape(profile["purpose"])}</p>'
+        f'<p>Peter’s supplied professional profile lists these qualifications: {escape(qualifications)}. '
+        f'It also lists previous roles as {escape(former_roles)}.</p>'
         f'<div class="about-tags">{tags}</div>'
         '<details class="research-links"><summary>Explore selected research '
         '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
@@ -61,8 +72,26 @@ def render(data: dict) -> str:
         + json.dumps(schema, ensure_ascii=False, separators=(",", ":"))
         + "</script>"
     )
+    offer_cards = "".join(
+        '<article class="subject-card offer-card">'
+        f'<p class="eyebrow">{escape(offer["label"])}</p>'
+        f'<h3>{escape(offer["title"])}</h3>'
+        f'<p>{escape(offer["summary"])}</p>'
+        f'<p class="offer-boundary">{escape(offer["boundary"])}</p>'
+        f'<a class="text-link" href="{escape(offer["href"], quote=True)}" '
+        f'data-offer-level="{escape(offer.get("level", ""), quote=True)}">'
+        f'{escape(offer["link_label"])} ↗</a></article>'
+        for offer in data["education_offers"]
+    )
+    offers_html = (
+        f'<div class="subject-grid">{offer_cards}</div>'
+        '<p class="offer-example">See how a model claim can be tested: '
+        '<a href="resources/model-assumptions-example.html">read the worked critique ↗</a></p>'
+    )
     source = PAGE.read_text(encoding="utf-8")
-    return replace_block(replace_block(source, "PROFILE", profile_html), "SCHEMA", schema_html)
+    source = replace_block(source, "PROFILE", profile_html)
+    source = replace_block(source, "OFFERS", offers_html)
+    return replace_block(source, "SCHEMA", schema_html)
 
 
 def render_config(data: dict) -> str:

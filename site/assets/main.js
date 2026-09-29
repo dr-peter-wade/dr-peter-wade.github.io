@@ -43,6 +43,10 @@
       });
     });
     activate(tabs.find(tab=>tab.dataset.level==='undergraduate') || tabs[0]);
+    document.querySelectorAll('[data-offer-level]').forEach(link=>link.addEventListener('click',()=>{
+      const target=tabs.find(tab=>tab.dataset.level===link.dataset.offerLevel);
+      if(target)activate(target);
+    }));
   }
   document.querySelectorAll('[data-select-level]').forEach(link=>link.addEventListener('click',()=>{const field=document.getElementById('enquiry-level');if(field)field.value=link.dataset.selectLevel;}));
   document.querySelectorAll('[data-print]').forEach(button=>button.addEventListener('click',()=>window.print()));
