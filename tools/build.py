@@ -12,6 +12,7 @@ Run from the parent workspace, which holds shared_data/. Standard library only.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import sys
 from datetime import date
@@ -55,11 +56,29 @@ ICON_PATHS = {
 }
 WRITING_LINE = '<div class="writing-line"></div>'
 HEAD_LINE = '\n  '
+SRC = ROOT / 'src'
+# GitHub Pages lets browsers keep files for only ten minutes, so each page carries its own styles,
+# scripts and artwork: nothing to fetch again and nothing to hold up the first paint.
+STYLES = (SRC / 'styles.css').read_text(encoding='utf-8').strip()
+MAIN_JS = (SRC / 'main.js').read_text(encoding='utf-8').strip()
+CLARITY = 'data:image/svg+xml;base64,' + base64.b64encode((SRC / 'clarity.svg').read_bytes()).decode()
 NOT_FOUND_STYLE ='body{margin:0;background:#f7f7ef;color:#173c33;font:17px/1.7 system-ui,sans-serif;display:grid;min-height:100vh;place-items:center}main{max-width:620px;padding:40px}h1{font:54px/1.05 Georgia,serif;letter-spacing:-2px}p{color:#56665b}a{color:inherit}small{letter-spacing:2px;font-size:11px}'
 
 
 def icon(name: str) -> str:
     return f'<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{ICON_PATHS[name]}</svg>'
+
+
+def head_assets(prefix: str = '') -> str:
+    return f'<link rel="icon" href="{prefix}assets/favicon.svg" type="image/svg+xml"><style>{STYLES}</style>'
+
+
+def scripts() -> str:
+    """The site settings, then the page behaviour, at the end of the body where the page is already parsed."""
+    code = (site_config(), MAIN_JS)
+    if any('</script' in part.lower() for part in code):
+        raise ValueError('Inline script would close its own element')
+    return ''.join(f'<script>{part}</script>' for part in code)
 
 
 def robots(page: str) -> str:
@@ -163,10 +182,11 @@ def llms_text() -> str:
     lines += ['', f'## {labels["resources"]}', '']
     lines += [sc.md_link(sc.plain(r['title']), f'{BASE}resources/{r["slug"]}.html', f'{rp["kinds"][r["kind"]]}. ' + sc.plain(sc.fill(r['description'], resource_tokens(r))))
               for r in C['resources']]
+    # Sections hold link lists only (no sub-headings), so standard llms.txt parsers read every answer.
     lines += ['', f'## {labels["questions"]}', '']
-    for item in h['faq']['items']:
-        lines += [f'### {sc.plain(item["question"])}', '', sc.plain(item['answer']), '']
-    lines += [f'## {labels["related"]}', '', sc.md_link(DATA['business_name'], GEOCHEMICAL_URL + '/', DATA['business_description']),
+    lines += [sc.md_link(sc.plain(item['question']), BASE + '#faq-heading', sc.plain(item['answer'])) for item in h['faq']['items']]
+    lines += ['', f'## {labels["related"]}', '', sc.md_link(DATA['business_name'], GEOCHEMICAL_URL + '/', DATA['business_description']),
+              sc.md_link(labels['geochemical_llms'], GEOCHEMICAL_URL + '/llms.txt'),
               sc.md_link(labels['data'], GEOCHEMICAL_URL + '/peter-wade.json'), '']
     return '\n'.join(lines)
 
@@ -213,10 +233,7 @@ def home_page() -> str:
   <meta name="theme-color" content="#183c33">
   <meta name="referrer" content="strict-origin-when-cross-origin">{share_meta('index.html', h['title'], h['og_description'], HEAD_LINE)}
   <title>{h['title']}</title>
-  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="assets/styles.css">
-  <script src="site-config.js" defer></script>
-  <script src="assets/main.js" defer></script>
+  {head_assets()}
   {structured('index.html', h['title'], h['description'], extra=(home_faq(),))}
 </head>
 <body id="top" data-print-title="{h['title']}"><a class="skip-link" href="#main">{h['skip']}</a>
@@ -232,7 +249,7 @@ def home_page() -> str:
 <main id="main">
 <section class="hero wrap" aria-labelledby="hero-title">
   <div class="hero-copy"><p class="eyebrow"><span class="tiny-star">✳</span> {hero['eyebrow']}</p><h1 id="hero-title">{hero['title']}</h1><p class="hero-description">{hero['description']}</p><div class="hero-actions"><a class="button primary" href="#support">{hero['primary']} {icon('arrow')}</a><a class="quiet-link" href="#about">{hero['secondary']} {icon('next')}</a></div><div class="hero-footnote"><span class="small-line"></span> {hero['footnote']}</div></div>
-  <div class="science-card" aria-label="{card['label']}"><div class="science-top"><span>{card['top']}</span>{icon('spark')}</div><img class="clarity-art" src="assets/clarity.svg" width="560" height="490" alt="" fetchpriority="high"><div class="science-sticker">{card['sticker']}</div><div class="science-bottom">{steps}</div></div>
+  <div class="science-card" aria-label="{card['label']}"><div class="science-top"><span>{card['top']}</span>{icon('spark')}</div><img class="clarity-art" src="{CLARITY}" width="560" height="490" alt=""><div class="science-sticker">{card['sticker']}</div><div class="science-bottom">{steps}</div></div>
 </section>
 <div class="topic-strip"><div class="wrap topic-list">{'<i>✳</i>'.join(f'<span>{t}</span>' for t in h['topics'])}</div></div>
 <section class="section wrap offer-paths" aria-labelledby="offer-paths-heading">
@@ -247,7 +264,7 @@ def home_page() -> str:
 <section class="faq-section section wrap" aria-labelledby="faq-heading"><div><p class="eyebrow">{fq['eyebrow']}</p><h2 id="faq-heading">{fq['heading']}</h2><p>{fq['text']}</p></div><div class="faq-list">{faq}</div></section>
 <section class="contact-section" id="contact" aria-labelledby="contact-heading"><div class="wrap contact-grid"><div class="contact-copy"><p class="eyebrow">{ct['eyebrow']}</p><h2 id="contact-heading">{ct['heading']}</h2><p>{ct['text']}</p><div class="contact-note"><span>{icon('book')}</span><p>{ct['note']}</p></div><p class="contact-status" id="contact-status">{ct['status']}</p><a class="direct-email" id="direct-email" hidden></a></div>
 <div class="contact-form-card"><form id="enquiry-form" action="#contact" method="get"><fieldset id="enquiry-fields" disabled><legend class="sr-only">{ct['legend']}</legend><div class="form-row"><div class="field"><label for="enquiry-name">{ct['name']}</label><input id="enquiry-name" name="name" autocomplete="name" maxlength="100" required placeholder="{ct['name_placeholder']}"></div><div class="field"><label for="enquiry-email">{ct['email']}</label><input id="enquiry-email" name="email" type="email" autocomplete="email" maxlength="200" required placeholder="{ct['email_placeholder']}"></div></div><div class="field"><label for="enquiry-level">{ct['level']}</label><select id="enquiry-level" name="level" required><option value="">{ct['level_placeholder']}</option>{levels}<option value="other">{ct['level_other']}</option></select></div><div class="field"><label for="enquiry-topic">{ct['topic']}</label><input id="enquiry-topic" name="topic" maxlength="160" required placeholder="{ct['topic_placeholder']}"></div><div class="field"><label for="enquiry-message">{ct['message']}</label><textarea id="enquiry-message" name="message" rows="4" maxlength="1800" required placeholder="{ct['message_placeholder']}"></textarea></div><label class="checkbox-label"><input id="enquiry-adult" name="adult" type="checkbox" required><span>{ct['adult']}</span></label><button class="button primary form-submit" type="submit">{ct['submit']} {icon('next')}</button><p class="form-footnote">{ct['footnote']}</p></fieldset></form><noscript><p class="notice">{ct['noscript']}</p></noscript><div id="draft-panel" class="draft-panel" hidden><h3>{ct['draft_heading']}</h3><p id="draft-status" role="status" aria-live="polite"></p><label class="sr-only" for="draft-text">{ct['draft_label']}</label><textarea id="draft-text" rows="9" readonly></textarea><div class="draft-actions"><a class="button primary" id="open-email" hidden>{ct['open']} {icon('arrow')}</a><button class="button secondary" id="copy-draft" type="button">{ct['copy']}</button></div><p class="form-footnote">{ct['draft_note']}</p></div></div></div></section>
-</main><footer class="site-footer"><div class="wrap footer-inner"><a class="footer-brand" href="index.html">{NAME}<span>{T['motto']}</span></a><div class="footer-links"><a href="privacy.html">{ft['privacy']}</a><a href="#top">{ft['back_to_top']}</a><small>© <span data-year>{date.today().year}</span> {ft['copyright_holder']}</small></div></div></footer></body></html>
+</main><footer class="site-footer"><div class="wrap footer-inner"><a class="footer-brand" href="index.html">{NAME}<span>{T['motto']}</span></a><div class="footer-links"><a href="privacy.html">{ft['privacy']}</a><a href="#top">{ft['back_to_top']}</a><small>© <span data-year>{date.today().year}</span> {ft['copyright_holder']}</small></div></div></footer>{scripts()}</body></html>
 '''
 
 
@@ -256,13 +273,12 @@ def privacy_page() -> str:
     sections = ''.join(f'<h2>{s["heading"]}</h2>{paragraphs(s["paragraphs"])}' for s in p['sections'])
     return (f'<!doctype html><html lang="{LOCALE}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
             f'<meta name="robots" content="{robots("privacy.html")}"><meta name="description" content="{p["description"]}">{share_meta("privacy.html", p["title"] + " | " + NAME, p["description"])}{structured("privacy.html", p["title"], p["description"])}'
-            f'<title>{p["title"]} | {NAME}</title><link rel="icon" href="assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="assets/styles.css">'
-            f'<script src="site-config.js" defer></script><script src="assets/main.js" defer></script></head><body><header class="site-header article-header">'
+            f'<title>{p["title"]} | {NAME}</title>{head_assets()}</head><body><header class="site-header article-header">'
             f'<div class="wrap header-inner">{brand("index.html")}<a class="back-link" href="index.html">{T["back_link"]}</a></div></header>'
             f'<main class="article-main"><p class="eyebrow">{p["eyebrow"]}</p><h1>{p["heading"]}</h1><p class="article-lead">{p["lead"]}</p>'
             f'<div class="notice" data-preview-only>{p["notice"]}</div>{sections}'
             f'<p class="resource-footer">{sc.fill(p["updated_note"], {"date": sc.long_date(p["updated"])})}</p></main>'
-            f'<footer class="footer-simple">{p["footer"]}</footer></body></html>\n')
+            f'<footer class="footer-simple">{p["footer"]}</footer>{scripts()}</body></html>\n')
 
 
 def not_found_page() -> str:
@@ -287,14 +303,13 @@ def worksheet_page(r: dict) -> str:
     description = sc.fill(r['description'], tokens)
     return (f'<!doctype html><html lang="{LOCALE}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
             f'<meta name="robots" content="{robots(page)}"><meta name="description" content="{description}"><meta name="theme-color" content="#183c33">{share_meta(page, r["title"] + " | " + NAME, description)}{structured(page, r["title"], description, resource(r, page, description))}'
-            f'<title>{r["title"]} | {NAME}</title><link rel="icon" href="../assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../assets/styles.css">'
-            f'<script src="../site-config.js" defer></script><script src="../assets/main.js" defer></script></head><body><header class="site-header article-header">'
+            f'<title>{r["title"]} | {NAME}</title>{head_assets("../")}</head><body><header class="site-header article-header">'
             f'<div class="wrap header-inner">{brand("../index.html")}<a class="back-link" href="../index.html#resources">{rp["all_resources"]}</a></div></header>'
             f'<main class="article-main" id="main"><p class="eyebrow">{rp["eyebrow"]}</p><h1>{r["title"]}</h1><p class="article-lead">{sc.fill(r.get("lead", r["description"]), tokens)}</p>'
             f'<div class="article-actions"><button class="button primary" type="button" data-print>{rp["print"]} {icon("print")}</button>'
             f'<a class="button secondary" href="{r["slug"]}.txt" download>{rp["download"]}</a></div><p>{r["intro"]}</p>{blocks}'
             f'<div class="article-end"><h2>{rp["end_heading"]}</h2><p>{rp["end_text"]}</p><a class="text-link" href="../index.html#support">{rp["end_link"]} {icon("next")}</a></div>'
-            f'<p class="resource-footer">{rp["footer_note"]} · {tokens["date"]}</p></main><footer class="footer-simple">{rp["footer"]}</footer></body></html>\n')
+            f'<p class="resource-footer">{rp["footer_note"]} · {tokens["date"]}</p></main><footer class="footer-simple">{rp["footer"]}</footer>{scripts()}</body></html>\n')
 
 
 def worked_example_page(r: dict) -> str:
@@ -314,10 +329,7 @@ def worked_example_page(r: dict) -> str:
   <meta name="theme-color" content="#183c33">{share_meta(page, r['title'] + ' | ' + NAME, description, HEAD_LINE)}
   {structured(page, r['title'], description, resource(r, page, description))}
   <title>{r['title']} | {NAME}</title>
-  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../assets/styles.css">
-  <script src="../site-config.js" defer></script>
-  <script src="../assets/main.js" defer></script>
+  {head_assets('../')}
 </head>
 <body>
   <header class="site-header article-header"><div class="wrap header-inner">{brand('../index.html')}<a class="back-link" href="../index.html#offer-paths-heading">{rp['learning_paths']}</a></div></header>
@@ -331,6 +343,7 @@ def worked_example_page(r: dict) -> str:
     <p class="resource-footer">{r['footer_note']} · {tokens['date']}</p>
   </main>
   <footer class="footer-simple">{rp['footer']}</footer>
+  {scripts()}
 </body>
 </html>
 '''
@@ -352,9 +365,8 @@ def site_config() -> str:
         'enquiryServiceEnabled': service['enabled'],
         'messages': C['messages'],
     }
-    return ('/* Generated by tools/build.py from shared_data/. Public values only: never passwords or tokens.\n'
-            '   Change shared_data/education_site.json or run tools/configure.py, not this file. */\n'
-            'window.PETER_WADE_SITE = Object.freeze(' + json.dumps(config, indent=2, ensure_ascii=True) + ');\n')
+    # Public values only: never passwords or tokens. "<" is escaped so the JSON cannot end its script element.
+    return 'window.PETER_WADE_SITE = Object.freeze(' + json.dumps(config, ensure_ascii=True).replace('<', '\\u003c') + ');'
 
 
 def social_card() -> str:
@@ -363,7 +375,7 @@ def social_card() -> str:
     css = (ROOT / 'tools' / 'social-card.css').read_text(encoding='utf-8')
     return (f'<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><style>{css}</style></head><body>'
             f'<p class="kicker">{card["eyebrow"]}</p><h1>{C["home"]["hero"]["title"]}</h1><p class="sub">{card["subtitle"]}</p>'
-            f'<p class="foot">{T["tagline"].upper()}</p><div class="panel"><img src="../site/assets/clarity.svg" alt=""></div></body></html>\n')
+            f'<p class="foot">{T["tagline"].upper()}</p><div class="panel"><img src="../src/clarity.svg" alt=""></div></body></html>\n')
 
 
 def outputs() -> dict[Path, str]:
@@ -375,7 +387,6 @@ def outputs() -> dict[Path, str]:
             files[f'resources/{r["slug"]}.txt'] = text_version(r)
         else:
             pages[f'resources/{r["slug"]}.html'] = worked_example_page(r)
-    files['site-config.js'] = site_config()
     files['robots.txt'] = ('User-agent: *\nDisallow: /\n' if PREVIEW else 'User-agent: *\nAllow: /\n') + (f'\nSitemap: {BASE}sitemap.xml\n' if not PREVIEW and BASE else '')
     if BASE:
         files['llms.txt'] = llms_text()

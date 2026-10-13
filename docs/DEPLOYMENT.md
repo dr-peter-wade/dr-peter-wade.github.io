@@ -39,6 +39,7 @@ Use SSH authentication with access to the organisation. The split excludes the g
 .github/workflows/deploy.yml
 site/index.html
 site/assets/...
+src/...
 tools/check_site.py
 tools/configure.py
 README.md

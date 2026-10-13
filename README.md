@@ -47,10 +47,10 @@ Official policies and instructions are linked in the deployment guide. Checked 2
 | `site/resources/` | Three printable worksheets with plain-text versions, and a worked critique (generated) |
 | `site/privacy.html` | Technical privacy explanation and operator-completion reminder (generated) |
 | `site/404.html` | Missing-page fallback (generated) |
-| `site/assets/` | CSS, JavaScript, original SVG artwork, favicon and the rendered social-sharing PNG |
-| `site/site-config.js` | Public contact, preview configuration and visitor messages (generated) |
+| `site/assets/` | Favicon and the rendered social-sharing PNG |
+| `src/` | Stylesheet, browser script and original SVG artwork. The build writes them into every page, because GitHub Pages lets browsers keep files for only ten minutes; inlined, nothing has to be fetched again or holds up the first paint |
 | `.github/workflows/deploy.yml` | GitHub Pages deployment workflow |
-| `tools/build.py` | Generate every page, text download, `site-config.js`, sitemap, robots file and social-card source from `../../shared_data/` in the parent workspace |
+| `tools/build.py` | Generate every page (with its styles, script, public contact settings and visitor messages inline), text download, sitemap, robots file, llms.txt and social-card source from `../../shared_data/` in the parent workspace |
 | `tools/configure.py` | Save the launch settings to shared data and rebuild, Python standard library only |
 | `tools/check_site.py` | Offline local-link, metadata and configuration checks |
 | `tools/social-card.css` | Layout for the social-sharing image, rendered by the workspace's `tools/render_assets.py` |

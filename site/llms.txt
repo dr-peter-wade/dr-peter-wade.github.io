@@ -17,31 +17,15 @@
 
 ## Questions and answers
 
-### What subjects and levels can Peter help with?
-
-The focus is chemistry, geochemistry, environmental science and scientific modelling. Support can range from selected school and college topics to subject-specific university and postgraduate research questions. Please share your course outline and topic so suitability can be checked.
-
-### Can I ask for one focused discussion?
-
-Yes. Your enquiry can be about a single concept, a difficult paper, a modelling question or a longer-term learning goal. The scope, format, fees and availability are agreed before any session; an enquiry is not a booking.
-
-### Can the support be online?
-
-Include your preferred format and time zone in your enquiry. Online or in-person arrangements, any software requirements and availability will be confirmed individually. No location-specific teaching service is promised on this website.
-
-### Will Peter write an assignment or dissertation for me?
-
-No. The purpose is to help you understand the science, evaluate your approach and develop your own work. Support does not include completing assessed assignments, writing dissertations, fabricating data or taking examinations. Follow your institution’s rules on external assistance.
-
-### What about students under 18?
-
-A parent or guardian should make the initial enquiry and take part in agreeing any arrangements. School subject coverage and safeguarding arrangements must be confirmed before teaching begins. This website does not claim qualified-teacher status or a verified DBS check.
-
-### What does support cost?
-
-There are no published rates at this stage. Please describe your subject, level and goal. Scope, fees, preparation, cancellation arrangements and any other terms must be agreed in advance. The resources on this website are free to use for personal study.
+- [What subjects and levels can Peter help with?](https://dr-peter-wade.github.io/#faq-heading): The focus is chemistry, geochemistry, environmental science and scientific modelling. Support can range from selected school and college topics to subject-specific university and postgraduate research questions. Please share your course outline and topic so suitability can be checked.
+- [Can I ask for one focused discussion?](https://dr-peter-wade.github.io/#faq-heading): Yes. Your enquiry can be about a single concept, a difficult paper, a modelling question or a longer-term learning goal. The scope, format, fees and availability are agreed before any session; an enquiry is not a booking.
+- [Can the support be online?](https://dr-peter-wade.github.io/#faq-heading): Include your preferred format and time zone in your enquiry. Online or in-person arrangements, any software requirements and availability will be confirmed individually. No location-specific teaching service is promised on this website.
+- [Will Peter write an assignment or dissertation for me?](https://dr-peter-wade.github.io/#faq-heading): No. The purpose is to help you understand the science, evaluate your approach and develop your own work. Support does not include completing assessed assignments, writing dissertations, fabricating data or taking examinations. Follow your institution’s rules on external assistance.
+- [What about students under 18?](https://dr-peter-wade.github.io/#faq-heading): A parent or guardian should make the initial enquiry and take part in agreeing any arrangements. School subject coverage and safeguarding arrangements must be confirmed before teaching begins. This website does not claim qualified-teacher status or a verified DBS check.
+- [What does support cost?](https://dr-peter-wade.github.io/#faq-heading): There are no published rates at this stage. Please describe your subject, level and goal. Scope, fees, preparation, cancellation arrangements and any other terms must be agreed in advance. The resources on this website are free to use for personal study.
 
 ## Related
 
 - [Wade Geochemical Consulting](https://www.geochemical.consulting/): Independent geochemical modelling, interpretation and technical advisory practice.
+- [Consulting site guide for language models (llms.txt)](https://www.geochemical.consulting/llms.txt)
 - [Machine-readable profile of Dr Peter Wade (JSON)](https://www.geochemical.consulting/peter-wade.json)

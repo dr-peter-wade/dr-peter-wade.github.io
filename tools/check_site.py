@@ -10,6 +10,8 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1] / 'site'
+# Each page carries the site settings inline (tools/build.py), so they are read from the pages.
+SETTINGS = re.compile(r'window\.PETER_WADE_SITE = Object\.freeze\((\{.*?\})\);', re.S)
 
 class Document(HTMLParser):
     def __init__(self, path: Path) -> None:
@@ -75,10 +77,11 @@ def main() -> int:
             elif parts.fragment and target in docs and unquote(parts.fragment) not in docs[target].ids:
                 errors.append(f'{path.name}: missing fragment: {link}')
     try:
-        text = (ROOT / 'site-config.js').read_text(encoding='utf-8')
-        match = re.search(r'Object\.freeze\((\{.*?\})\);', text, re.S)
-        if not match: raise ValueError('Cannot parse site-config.js')
-        config = json.loads(match.group(1))
+        found = {path: SETTINGS.findall(path.read_text(encoding='utf-8')) for path in docs}
+        if not found.get((ROOT / 'index.html').resolve()): raise ValueError('index.html does not carry the site settings')
+        settings = {text for matches in found.values() for text in matches}
+        if len(settings) != 1: raise ValueError('Pages carry different site settings; rebuild with tools/build.py')
+        config = json.loads(settings.pop())
         if args.release:
             email = config.get('contactEmail', '')
             if not re.fullmatch(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", email):
