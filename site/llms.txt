@@ -1,0 +1,47 @@
+# Peter Wade | Science, made clearer
+
+> Educational support with Dr Peter Wade. Explore chemistry, geochemistry, environmental science and scientific modelling, from school foundations to postgraduate research.
+
+## Learning paths
+
+- [Chemistry with a clear starting point](https://dr-peter-wade.github.io/#support): Work through one agreed topic and syllabus with guided practice and a short next-step note.
+- [Methods mentoring around your question](https://dr-peter-wade.github.io/#support): Discuss one paper, dataset or model, with preparation agreed upfront and student-led next steps.
+- [Geochemical review and training](https://www.geochemical.consulting/training-mentoring): Scope a model review, data-interpretation task or team workshop through the consulting practice.
+
+## Free learning resources
+
+- [Ask a better question.](https://dr-peter-wade.github.io/resources/study-question.html): Worksheet. A short worksheet for getting unstuck, before your next study session.
+- [Read with purpose.](https://dr-peter-wade.github.io/resources/read-a-paper.html): Worksheet. Six prompts for making sense of a research paper, one useful question at a time.
+- [Before you model.](https://dr-peter-wade.github.io/resources/model-checklist.html): Worksheet. A practical checklist for starting with the scientific system, not the software.
+- [What does a model result actually show?](https://dr-peter-wade.github.io/resources/model-assumptions-example.html): Worked example. An original worked critique of what a positive calcite saturation index can and cannot show.
+
+## Questions and answers
+
+### What subjects and levels can Peter help with?
+
+The focus is chemistry, geochemistry, environmental science and scientific modelling. Support can range from selected school and college topics to subject-specific university and postgraduate research questions. Please share your course outline and topic so suitability can be checked.
+
+### Can I ask for one focused discussion?
+
+Yes. Your enquiry can be about a single concept, a difficult paper, a modelling question or a longer-term learning goal. The scope, format, fees and availability are agreed before any session; an enquiry is not a booking.
+
+### Can the support be online?
+
+Include your preferred format and time zone in your enquiry. Online or in-person arrangements, any software requirements and availability will be confirmed individually. No location-specific teaching service is promised on this website.
+
+### Will Peter write an assignment or dissertation for me?
+
+No. The purpose is to help you understand the science, evaluate your approach and develop your own work. Support does not include completing assessed assignments, writing dissertations, fabricating data or taking examinations. Follow your institution’s rules on external assistance.
+
+### What about students under 18?
+
+A parent or guardian should make the initial enquiry and take part in agreeing any arrangements. School subject coverage and safeguarding arrangements must be confirmed before teaching begins. This website does not claim qualified-teacher status or a verified DBS check.
+
+### What does support cost?
+
+There are no published rates at this stage. Please describe your subject, level and goal. Scope, fees, preparation, cancellation arrangements and any other terms must be agreed in advance. The resources on this website are free to use for personal study.
+
+## Related
+
+- [Wade Geochemical Consulting](https://www.geochemical.consulting/): Independent geochemical modelling, interpretation and technical advisory practice.
+- [Machine-readable profile of Dr Peter Wade (JSON)](https://www.geochemical.consulting/peter-wade.json)

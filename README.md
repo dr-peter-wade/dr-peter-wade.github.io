@@ -2,14 +2,14 @@
 
 A static educational website with responsive layouts, five learning-stage tabs, free study resources and a browser-only enquiry draft tool. An optional centrally routed enquiry service exists in the parent workspace, but is disabled in this preview.
 
-**Status: public preview at https://dr-peter-wade.github.io/.** No custom domain has been registered. The contact email is intentionally blank, enquiries are disabled, and search indexing is discouraged by metadata. A public preview is not private or password protected.
+**Status: public at https://dr-peter-wade.github.io/ and open to search engines since 13 October 2026.** No custom domain has been registered. The contact email is intentionally blank and enquiries are disabled until Peter approves the contact arrangements. Search indexing (`config.preview`) and contact activation (`config.launch_approved`) are separate settings in `../../shared_data/education_site.json`.
 
 ## Open the website
 
-Open `site/index.html` in a browser. For normal local preview, from this folder run:
+Open `site/index.html` in a browser. For a local preview that serves pages the way GitHub Pages does, run from the workspace root:
 
 ```sh
-python3 -m http.server 8000 --directory site --bind 127.0.0.1
+python3 tools/serve.py education
 ```
 
 Then visit `http://127.0.0.1:8000/`. On Windows, `py` may replace `python3`.
@@ -27,7 +27,7 @@ python3 tools/check_site.py --release
 
 Replace both capitalised placeholders. The script rejects invalid values, saves them to `config` in `../../shared_data/education_site.json` and rebuilds, so the contact configuration, canonical/share metadata, sitemap and robots settings change together. **It does not upload files, configure DNS or buy a domain.**
 
-The current online review remains in preview mode. To restore preview mode after a later launch:
+`--publish` approves contact and keeps search indexing on. The site is indexable but contact is not yet activated. To return to full preview mode (no indexing, no contact):
 
 ```sh
 python3 tools/configure.py --preview

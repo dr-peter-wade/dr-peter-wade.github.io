@@ -6,7 +6,7 @@ Public preview deployed 28 September 2026 at https://dr-peter-wade.github.io/ fr
 
 Unzip the package and open `site/index.html`. Review all five learning-stage tabs, subjects, research biography, FAQs, resources and privacy page. Confirm Peter's service scope, contact address and practical teaching arrangements before opening enquiries. The draft legal/privacy text needs operator-specific completion, not merely a configuration change.
 
-The original files intentionally start in **preview mode**. Enquiries produce draft text only, no destination is provided, and search indexing is discouraged. An online preview is still publicly accessible: `noindex` is not authentication.
+The original files started in **preview mode**. Search indexing was opened on 13 October 2026 (`config.preview` is `false`). Contact activation is a separate setting (`config.launch_approved`) and remains off, so enquiries produce draft text only and no destination is provided. `noindex` was never authentication: anything published is public.
 
 ## 2. Choose the right hosting route
 
@@ -72,7 +72,7 @@ The configuration script performs no network operations. It saves the email, URL
 
 To deploy approved changes from the shared workspace, use the commit, fetch and push commands in section 3.
 
-For a preview, leave `launch_approved` false. To restore preview mode use `python3 tools/configure.py --preview`, commit and push. This does not revoke copies already made by visitors or search engines.
+Search indexing (`preview`) and contact activation (`launch_approved`) are separate: `--publish` turns contact on and indexing on together, and `--preview` turns both off. To change only indexing, edit `config.preview` and run `python3 tools/build_all.py`. Restoring preview mode, then committing and pushing, does not revoke copies already made by visitors or search engines.
 
 The browser form currently prepares a draft and exposes a `mailto:` link only after approval. A separate, disabled Cloudflare Worker in the parent workspace can optionally send verified enquiries after sender credentials, a Turnstile widget, privacy wording and real delivery tests are complete. See `email_service/README.md` in the parent workspace. No booking system or payment gateway is included.
 
@@ -110,6 +110,6 @@ Source: [Cloudflare static HTML deployment](https://developers.cloudflare.com/pa
 
 **Enquiries do not send automatically:** the central Worker and frontend switch are disabled in this preview. The draft flow needs the visitor's email application. Confirm the approved address and test delivery before changing either mode.
 
-**Nothing appears in search:** preview mode uses `noindex`; use the configuration script only after approval. Search indexing is never guaranteed or instant.
+**Nothing appears in search:** check that `config.preview` is `false` and that the live pages say `index, follow`. Then check Google Search Console and Bing Webmaster Tools for the site and resubmit `sitemap.xml`. Search indexing is never guaranteed or instant.
 
 **Custom-domain HTTPS is not ready:** verify GitHub's DNS checks, remove conflicting web records and allow DNS/certificate provisioning time. Do not remove mail records. See the current GitHub custom-domain documentation before changing an existing live domain.

@@ -48,7 +48,10 @@ def main() -> None:
             if host.lower() in {'example.com', 'example.org', 'example.net', 'your-domain.uk'} or host.lower().endswith(('.invalid', '.test')):
                 p.error('Replace example contact/domain values before publishing.')
         config['launch_approved'] = True
-    if args.preview: config['launch_approved'] = False
+        config['preview'] = False
+    if args.preview:
+        config['launch_approved'] = False
+        config['preview'] = True
     approved = config.get('launch_approved') is True
     SETTINGS.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     subprocess.run([sys.executable, str(ROOT / 'tools' / 'build.py')], check=True)

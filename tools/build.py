@@ -21,18 +21,24 @@ ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / 'site'
 sys.path.insert(0, str(ROOT.parents[1] / 'tools'))
 import sitecontent as sc  # noqa: E402
+import structured_data as sd  # noqa: E402
 
 e = sc.escape
 DATA = sc.load('peter.json')
 GEOCHEMICAL_URL = sc.load('geochemical_site.json')['config']['url'].rstrip('/')
 RAW = sc.load('education_site.json')
 CONFIG = RAW['config']
+sc.use_locale(CONFIG['locale'])
 FACTS = sc.person_tokens(DATA) | {'resource_count': sum('card' in r for r in RAW['resources'])}
 C = sc.load_site('education_site.json', FACTS)
 T = C['tokens']
 NAME = FACTS['name']
 BASE = CONFIG['url'].rstrip('/') + '/' if CONFIG['url'] else ''
+LOCALE = CONFIG['locale']
+# Search indexing (preview) and contact activation (launch_approved) are separate decisions.
+PREVIEW = CONFIG['preview'] is not False
 APPROVED = CONFIG['launch_approved'] is True
+ENTITIES = sd.Entities(DATA, GEOCHEMICAL_URL, CONFIG['url'])
 ICON_PATHS = {
     'arrow': '<path d="M6 18 18 6M6 6h12v12"/>',
     'next': '<path d="M5 12h14M13 6l6 6-6 6"/>',
@@ -57,7 +63,7 @@ def icon(name: str) -> str:
 
 
 def robots(page: str) -> str:
-    return 'index, follow' if APPROVED and page != '404.html' else 'noindex, nofollow'
+    return 'index, follow' if not PREVIEW and page != '404.html' else 'noindex, nofollow'
 
 
 def url_meta(page: str, separator: str = '') -> str:
@@ -70,9 +76,18 @@ def url_meta(page: str, separator: str = '') -> str:
     return ''.join(separator + tag for tag in tags)
 
 
-def brand(home: str, label: bool = False) -> str:
-    aria = f' aria-label="{C["brand"]["home_label"]}"' if label else ''
-    return f'<a class="brand" href="{home}"{aria}><span class="brand-mark">{C["brand"]["mark"]}<span>·</span></span><span class="brand-name">{NAME}<span>{T["tagline"].upper()}</span></span></a>'
+def share_meta(page: str, title: str, description: str, separator: str = '') -> str:
+    """Open Graph and card tags so every page previews properly when shared."""
+    tags = ('<meta property="og:type" content="website">', f'<meta property="og:title" content="{title}">',
+            f'<meta property="og:description" content="{description}">', f'<meta property="og:locale" content="{LOCALE.replace("-", "_")}">',
+            '<meta name="twitter:card" content="summary_large_image">')
+    verification = [f'<meta name="{e(tool)}" content="{e(token)}">' for tool, token in CONFIG['site_verification'].items()] if page == 'index.html' else []
+    return ''.join(separator + tag for tag in (*tags, *verification)) + url_meta(page, separator)
+
+
+def brand(home: str) -> str:
+    # The link is named by its visible text; the monogram is decoration.
+    return f'<a class="brand" href="{home}"><span class="brand-mark" aria-hidden="true">{C["brand"]["mark"]}<span>·</span></span><span class="brand-name">{NAME} <span>{T["tagline"].upper()}</span></span></a>'
 
 
 def paragraphs(items) -> str:
@@ -101,17 +116,66 @@ def profile() -> str:
             f'{links}<p>{about["research_note"]}</p></details>')
 
 
-def schema() -> str:
-    person = {'@context': 'https://schema.org', '@type': 'Person', 'name': NAME,
-              'honorificPrefix': DATA['honorific_prefix'], 'knowsAbout': DATA['education_profile']['topics']}
-    return '<script type="application/ld+json">' + json.dumps(person, ensure_ascii=False, separators=(',', ':')) + '</script>'
+def offer_url(offer: dict, absolute: bool = False) -> str:
+    if 'geochemical_service' in offer:
+        return f'{GEOCHEMICAL_URL}/{offer["geochemical_service"]}'
+    return BASE + offer['href'] if absolute and offer['href'].startswith('#') else offer['href']
+
+
+def structured(page: str, title: str, description: str, main=None, extra=()) -> str:
+    """The page's JSON-LD graph: the site, Peter, the page itself and its breadcrumb trail."""
+    if not BASE:
+        return ''
+    url = BASE if page == 'index.html' else BASE + page
+    trail = None if page == 'index.html' else [(NAME, BASE), (sc.plain(title), url)]
+    person = ENTITIES.person()
+    if page == 'index.html':
+        person['makesOffer'] = [ENTITIES.offer(o['title'], o['summary'], offer_url(o, absolute=True), o['label']) for o in DATA['education_offers']]
+    return sd.script(
+        sd.website(BASE, sc.plain(C['home']['title']), LOCALE, ENTITIES.person_id),
+        person,
+        ENTITIES.practice(),
+        sd.webpage(url, sc.plain(title), sc.plain(description), BASE, LOCALE,
+                   breadcrumb={'@id': url + '#breadcrumb'} if trail else None, mainEntity=main, about={'@id': ENTITIES.person_id}),
+        sd.breadcrumbs(url, trail) if trail else None,
+        *extra)
+
+
+def resource(r: dict, page: str, description: str) -> dict | None:
+    """A free worksheet or worked example as a schema.org LearningResource."""
+    if not BASE:
+        return None
+    download = f'{BASE}resources/{r["slug"]}.txt' if r['kind'] == 'worksheet' else ''
+    return ENTITIES.learning_resource(BASE + page, sc.plain(r['title']), sc.plain(description), LOCALE, r['updated'],
+                                      C['resource_page']['kinds'][r['kind']], download)
+
+
+def home_faq() -> dict:
+    return {'@type': 'FAQPage', '@id': BASE + '#faq-heading', 'mainEntity': sd.questions(C['home']['faq']['items']),
+            'isPartOf': {'@id': BASE + '#webpage'}, 'inLanguage': LOCALE}
+
+
+def llms_text() -> str:
+    """llms.txt (llmstxt.org): a plain-text map of the site for language models and answer engines."""
+    h, rp, labels = C['home'], C['resource_page'], C['llms']
+    lines = [f'# {sc.plain(h["title"])}', '', f'> {sc.plain(h["description"])}', '', f'## {labels["paths"]}', '']
+    lines += [sc.md_link(o['title'], offer_url(o, absolute=True), o['summary']) for o in DATA['education_offers']]
+    lines += ['', f'## {labels["resources"]}', '']
+    lines += [sc.md_link(sc.plain(r['title']), f'{BASE}resources/{r["slug"]}.html', f'{rp["kinds"][r["kind"]]}. ' + sc.plain(sc.fill(r['description'], resource_tokens(r))))
+              for r in C['resources']]
+    lines += ['', f'## {labels["questions"]}', '']
+    for item in h['faq']['items']:
+        lines += [f'### {sc.plain(item["question"])}', '', sc.plain(item['answer']), '']
+    lines += [f'## {labels["related"]}', '', sc.md_link(DATA['business_name'], GEOCHEMICAL_URL + '/', DATA['business_description']),
+              sc.md_link(labels['data'], GEOCHEMICAL_URL + '/peter-wade.json'), '']
+    return '\n'.join(lines)
 
 
 def offers() -> str:
     h = C['home']['offers']
     cards = ''
     for offer in DATA['education_offers']:
-        href = f'{GEOCHEMICAL_URL}/{offer["geochemical_service"]}' if 'geochemical_service' in offer else offer['href']
+        href = offer_url(offer)
         cards += (f'<article class="subject-card offer-card"><p class="eyebrow">{e(offer["label"])}</p><h3>{e(offer["title"])}</h3>'
                   f'<p>{e(offer["summary"])}</p><p class="offer-boundary">{e(offer["boundary"])}</p>'
                   f'<a class="text-link" href="{e(href)}" data-offer-level="{e(offer.get("level", ""))}">{e(offer["link_label"])} ↗</a></article>')
@@ -140,30 +204,25 @@ def home_page() -> str:
     faq = ''.join(f'<details><summary>{item["question"]}{icon("plus")}</summary><p>{item["answer"]}</p></details>' for item in fq['items'])
     levels = ''.join(f'<option value="{x["id"]}">{x["tab"]}</option>' for x in lv['items'])
     return f'''<!doctype html>
-<html lang="en-GB">
+<html lang="{LOCALE}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="{h['description']}">
   <meta name="robots" content="{robots('index.html')}">
   <meta name="theme-color" content="#183c33">
-  <meta name="referrer" content="strict-origin-when-cross-origin">
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="{h['title']}">
-  <meta property="og:description" content="{h['og_description']}">
-  <meta property="og:locale" content="en_GB">
-  <meta name="twitter:card" content="summary_large_image">{url_meta('index.html', HEAD_LINE)}
+  <meta name="referrer" content="strict-origin-when-cross-origin">{share_meta('index.html', h['title'], h['og_description'], HEAD_LINE)}
   <title>{h['title']}</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/styles.css">
   <script src="site-config.js" defer></script>
   <script src="assets/main.js" defer></script>
-  {schema()}
+  {structured('index.html', h['title'], h['description'], extra=(home_faq(),))}
 </head>
 <body id="top" data-print-title="{h['title']}"><a class="skip-link" href="#main">{h['skip']}</a>
 <header class="site-header">
   <div class="wrap header-inner">
-    {brand('index.html', label=True)}
+    {brand('index.html')}
     <button class="menu-toggle" type="button" aria-controls="primary-nav" aria-expanded="false">{h['menu']} <span aria-hidden="true">☰</span></button>
     <nav class="primary-nav" id="primary-nav" aria-label="{h['nav_label']}">
       {nav}<a class="nav-cta" href="#contact">{h['nav_cta']} {icon('arrow')}</a>
@@ -195,8 +254,8 @@ def home_page() -> str:
 def privacy_page() -> str:
     p = C['privacy']
     sections = ''.join(f'<h2>{s["heading"]}</h2>{paragraphs(s["paragraphs"])}' for s in p['sections'])
-    return (f'<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            f'<meta name="robots" content="{robots("privacy.html")}"><meta name="description" content="{p["description"]}">{url_meta("privacy.html")}'
+    return (f'<!doctype html><html lang="{LOCALE}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+            f'<meta name="robots" content="{robots("privacy.html")}"><meta name="description" content="{p["description"]}">{share_meta("privacy.html", p["title"] + " | " + NAME, p["description"])}{structured("privacy.html", p["title"], p["description"])}'
             f'<title>{p["title"]} | {NAME}</title><link rel="icon" href="assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="assets/styles.css">'
             f'<script src="site-config.js" defer></script><script src="assets/main.js" defer></script></head><body><header class="site-header article-header">'
             f'<div class="wrap header-inner">{brand("index.html")}<a class="back-link" href="index.html">{T["back_link"]}</a></div></header>'
@@ -208,7 +267,7 @@ def privacy_page() -> str:
 
 def not_found_page() -> str:
     n = C['not_found']
-    return (f'<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+    return (f'<!doctype html><html lang="{LOCALE}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
             f'<meta name="description" content="{n["description"]}"><meta name="robots" content="{robots("404.html")}"><title>{n["title"]} | {NAME}</title>'
             f'<style>{NOT_FOUND_STYLE}</style></head><body><main><small>{n["label"]}</small><h1>{n["heading"]}</h1><p>{n["text"]}</p>'
             f'<p><a id="home-link" href="{e(BASE or "index.html")}">{T["back_link"]}</a></p></main></body></html>\n')
@@ -226,8 +285,8 @@ def worksheet_page(r: dict) -> str:
         else:
             blocks += f'\n<div class="example-block">{paragraphs(block["example"])}</div>'
     description = sc.fill(r['description'], tokens)
-    return (f'<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            f'<meta name="robots" content="{robots(page)}"><meta name="description" content="{description}"><meta name="theme-color" content="#183c33">{url_meta(page)}'
+    return (f'<!doctype html><html lang="{LOCALE}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+            f'<meta name="robots" content="{robots(page)}"><meta name="description" content="{description}"><meta name="theme-color" content="#183c33">{share_meta(page, r["title"] + " | " + NAME, description)}{structured(page, r["title"], description, resource(r, page, description))}'
             f'<title>{r["title"]} | {NAME}</title><link rel="icon" href="../assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../assets/styles.css">'
             f'<script src="../site-config.js" defer></script><script src="../assets/main.js" defer></script></head><body><header class="site-header article-header">'
             f'<div class="wrap header-inner">{brand("../index.html")}<a class="back-link" href="../index.html#resources">{rp["all_resources"]}</a></div></header>'
@@ -244,14 +303,16 @@ def worked_example_page(r: dict) -> str:
     tokens = resource_tokens(r)
     steps = ''.join(f'    <section class="worksheet-step"><h2>{i}. {b["step"]}</h2><p>{b["text"]}</p></section>\n' for i, b in enumerate(r['blocks'], 1))
     end = r['end']
+    description = sc.fill(r['description'], tokens)
     return f'''<!doctype html>
-<html lang="en-GB">
+<html lang="{LOCALE}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="{robots(page)}">
-  <meta name="description" content="{sc.fill(r['description'], tokens)}">
-  <meta name="theme-color" content="#183c33">{url_meta(page, HEAD_LINE)}
+  <meta name="description" content="{description}">
+  <meta name="theme-color" content="#183c33">{share_meta(page, r['title'] + ' | ' + NAME, description, HEAD_LINE)}
+  {structured(page, r['title'], description, resource(r, page, description))}
   <title>{r['title']} | {NAME}</title>
   <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="../assets/styles.css">
@@ -315,8 +376,9 @@ def outputs() -> dict[Path, str]:
         else:
             pages[f'resources/{r["slug"]}.html'] = worked_example_page(r)
     files['site-config.js'] = site_config()
-    files['robots.txt'] = ('User-agent: *\nAllow: /\n' if APPROVED else 'User-agent: *\nDisallow: /\n') + (f'\nSitemap: {BASE}sitemap.xml\n' if APPROVED and BASE else '')
+    files['robots.txt'] = ('User-agent: *\nDisallow: /\n' if PREVIEW else 'User-agent: *\nAllow: /\n') + (f'\nSitemap: {BASE}sitemap.xml\n' if not PREVIEW and BASE else '')
     if BASE:
+        files['llms.txt'] = llms_text()
         urls = [BASE if page == 'index.html' else BASE + page for page in sorted(pages) if page != '404.html']
         files['sitemap.xml'] = '\n'.join(['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
                                          + [f'  <url><loc>{e(url)}</loc></url>' for url in urls] + ['</urlset>', ''])
