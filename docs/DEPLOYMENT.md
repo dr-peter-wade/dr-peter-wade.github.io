@@ -16,17 +16,22 @@ Primary source: [GitHub Pages limits](https://docs.github.com/en/pages/getting-s
 
 ## 3. Update the organisation repository
 
-The public repository `dr-peter-wade/dr-peter-wade.github.io` already exists. Never add personal documents or secrets to it. The website also lives under `education_assistance/peter-wade-website/` in the shared `peterwade` workspace. To push changes from that workspace, commit the relevant website files on its `main` branch, then split and push only this directory:
+The public repository `dr-peter-wade/dr-peter-wade.github.io` already exists. Never add personal documents or secrets to it. The website also lives under `education_assistance/peter-wade-website/` in the shared `peterwade` workspace. To push changes from that workspace, commit the relevant files on its `main` branch, then publish only this directory as a new commit on top of the published `main`:
 
 ```sh
 cd /path/to/peterwade
 python3 education_assistance/peter-wade-website/tools/build.py --check
 python3 education_assistance/peter-wade-website/tools/check_site.py
-git add education_assistance/peter-wade-website
+git add shared_data education_assistance/peter-wade-website
 git commit -m "Update Peter Wade educational website"
-site_commit=$(git subtree split --prefix=education_assistance/peter-wade-website HEAD)
-git push git@github.com:dr-peter-wade/dr-peter-wade.github.io.git "${site_commit}:refs/heads/main"
+repo=git@github.com:dr-peter-wade/dr-peter-wade.github.io.git
+git fetch "$repo" main
+tree=$(git rev-parse "$(git subtree split --prefix=education_assistance/peter-wade-website HEAD)^{tree}")
+site_commit=$(git commit-tree "$tree" -p FETCH_HEAD -m "Update Peter Wade educational website")
+git push "$repo" "${site_commit}:refs/heads/main"
 ```
+
+The published history has diverged from the workspace's `git subtree split` history, so pushing the split commit directly is rejected as a non-fast-forward. Committing the split's tree on top of the fetched `main` publishes the same files as a normal fast-forward. Do not force-push. If the push is rejected, someone else has published since the fetch: fetch again and repeat the last two commands.
 
 Use SSH authentication with access to the organisation. The split excludes the geochemical consulting project and the source ZIP. The published repository root must look like this, without an extra nesting level:
 
@@ -54,7 +59,7 @@ Sources: [Creating a Pages site](https://docs.github.com/en/pages/getting-starte
 
 ## 5. Approve contact and search indexing
 
-Complete `docs/LAUNCH-CHECKLIST.md`, including an actual privacy notice for the operator. Once the contact email and real homepage URL are known, from the repository folder run:
+Complete `docs/LAUNCH-CHECKLIST.md`, including an actual privacy notice for the operator. Once the contact email and real homepage URL are known, run from this project folder inside the shared workspace (the published repository has no `shared_data/`, so the script cannot run there):
 
 ```sh
 python3 tools/configure.py --email "PETERS-APPROVED-EMAIL" --url "ACTUAL-HTTPS-HOMEPAGE-URL" --publish
@@ -63,11 +68,11 @@ python3 tools/check_site.py --release
 
 These are placeholders, not an email address or domain to use. Example URL shape for a project: `https://YOUR-USERNAME.github.io/peter-wade/`; for an owned custom domain: `https://YOUR-ACTUAL-DOMAIN/`.
 
-The configuration script performs no network operations. It writes public email configuration, canonical URLs, social-sharing URLs, robots metadata and a sitemap. It updates the 404 homepage link to an absolute address. It does not buy a domain, publish to GitHub, or make the privacy statement legally complete.
+The configuration script performs no network operations. It saves the email, URL and launch state to `config` in `shared_data/education_site.json`, then rebuilds the site, which writes the public email configuration, canonical URLs, social-sharing URLs, robots metadata, sitemap and an absolute 404 homepage link. It does not buy a domain, publish to GitHub, or make the privacy statement legally complete. Editing `config` by hand and running `python3 tools/build_all.py` from the workspace root has the same effect, without the validation.
 
-To deploy approved changes from the shared workspace, use the commit, subtree split and push commands in section 3.
+To deploy approved changes from the shared workspace, use the commit, fetch and push commands in section 3.
 
-For a preview, leave `launchApproved` false. To restore preview mode use `python3 tools/configure.py --preview`, commit and push. This does not revoke copies already made by visitors or search engines.
+For a preview, leave `launch_approved` false. To restore preview mode use `python3 tools/configure.py --preview`, commit and push. This does not revoke copies already made by visitors or search engines.
 
 The browser form currently prepares a draft and exposes a `mailto:` link only after approval. A separate, disabled Cloudflare Worker in the parent workspace can optionally send verified enquiries after sender credentials, a Turnstile widget, privacy wording and real delivery tests are complete. See `email_service/README.md` in the parent workspace. No booking system or payment gateway is included.
 

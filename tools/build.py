@@ -1,130 +1,343 @@
 #!/usr/bin/env python3
-"""Render the educational profile from the workspace's shared Peter Wade data."""
+"""Build the educational website from the workspace's shared data.
+
+Facts about Peter come from shared_data/peter.json; this site's copy and settings come from
+shared_data/education_site.json. This file holds markup only.
+
+    python3 tools/build.py           # regenerate the site/ pages, text downloads and settings
+    python3 tools/build.py --check   # fail if any generated file is out of date
+
+Run from the parent workspace, which holds shared_data/. Standard library only.
+"""
 from __future__ import annotations
 
 import argparse
-import html
 import json
-import re
+import sys
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SHARED = ROOT.parents[1] / "shared_data" / "peter.json"
-PAGE = ROOT / "site" / "index.html"
-CONFIG = ROOT / "site" / "site-config.js"
+SITE = ROOT / 'site'
+sys.path.insert(0, str(ROOT.parents[1] / 'tools'))
+import sitecontent as sc  # noqa: E402
+
+e = sc.escape
+DATA = sc.load('peter.json')
+GEOCHEMICAL_URL = sc.load('geochemical_site.json')['config']['url'].rstrip('/')
+RAW = sc.load('education_site.json')
+CONFIG = RAW['config']
+FACTS = sc.person_tokens(DATA) | {'resource_count': sum('card' in r for r in RAW['resources'])}
+C = sc.load_site('education_site.json', FACTS)
+T = C['tokens']
+NAME = FACTS['name']
+BASE = CONFIG['url'].rstrip('/') + '/' if CONFIG['url'] else ''
+APPROVED = CONFIG['launch_approved'] is True
+ICON_PATHS = {
+    'arrow': '<path d="M6 18 18 6M6 6h12v12"/>',
+    'next': '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    'spark': '<path d="m12 2 2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2Z"/>',
+    'check': '<path d="m5 12 4 4L19 6"/>',
+    'plus': '<path d="M12 5v14M5 12h14"/>',
+    'print': '<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
+    'flask': '<path d="M8 3h8M9 3v7l-5 8a2 2 0 0 0 2 3h12a2 2 0 0 0 2-3l-5-8V3M7 15h10"/><path d="M10 17h.01M14 18h.01"/>',
+    'drop': '<path d="M12 3s7 7 7 12a7 7 0 0 1-14 0c0-5 7-12 7-12Z"/><path d="M8 15a4 4 0 0 0 4 4"/>',
+    'crystal': '<path d="m12 2 8 6v10l-8 4-8-4V8l8-6Zm0 0v20M4 8l8 5 8-5M4 18l8-5 8 5"/>',
+    'model': '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="m7 15 3-4 4 2 3-6M7 7h.01"/>',
+    'book': '<path d="M4 4h6a3 3 0 0 1 3 3v14a4 4 0 0 0-4-2H4V4ZM20 4h-4a3 3 0 0 0-3 3v14a4 4 0 0 1 4-2h3V4Z"/>',
+    'chart': '<path d="M4 3v18h17M8 17v-5M13 17V7M18 17v-8"/>',
+}
+WRITING_LINE = '<div class="writing-line"></div>'
+HEAD_LINE = '\n  '
+NOT_FOUND_STYLE ='body{margin:0;background:#f7f7ef;color:#173c33;font:17px/1.7 system-ui,sans-serif;display:grid;min-height:100vh;place-items:center}main{max-width:620px;padding:40px}h1{font:54px/1.05 Georgia,serif;letter-spacing:-2px}p{color:#56665b}a{color:inherit}small{letter-spacing:2px;font-size:11px}'
 
 
-def replace_block(source: str, marker: str, content: str) -> str:
-    pattern = re.compile(
-        rf"(<!-- SHARED_{marker}_START -->).*?(<!-- SHARED_{marker}_END -->)", re.S
-    )
-    updated, count = pattern.subn(lambda match: f"{match[1]}\n{content}\n{match[2]}", source)
-    if count != 1:
-        raise ValueError(f"Expected one {marker} block in {PAGE}")
-    return updated
+def icon(name: str) -> str:
+    return f'<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{ICON_PATHS[name]}</svg>'
 
 
-def render(data: dict) -> str:
-    profile = data["education_profile"]
-    professional = data["professional_profile"]
-    publications = {item["url"]: item for item in data["publications"]}
-    featured = [publications[url] for url in profile["featured_publication_urls"]]
-    escape = html.escape
-    tags = "".join(f"<span>{escape(topic)}</span>" for topic in profile["topics"])
-    links = "".join(
-        f'<a href="{escape(item["url"], quote=True)}" target="_blank" '
-        f'rel="noopener noreferrer">{escape(item["title"])} · '
-        f'{escape(item["journal"])} ({escape(str(item["year"]))}) ↗</a>'
-        for item in featured
-    )
-    qualifications = "; ".join(
-        f'{item["award"]} ({item["year"]}), {item["institution"]}'
-        for item in professional["qualifications"]
-    )
-    former_roles = "; ".join(
-        f'{item["title"]} at {item["organisation"]}'
-        for item in professional["former_roles"]
-    )
-    profile_html = (
-        f'<span class="name-label">{escape(data["person"].upper())}</span>'
-        f'<p class="large-copy">{escape(profile["heading"])}</p>'
-        f'<p>{escape(profile["experience"])}</p>'
-        f'<p>{escape(profile["purpose"])}</p>'
-        f'<p>Peter’s supplied professional profile lists these qualifications: {escape(qualifications)}. '
-        f'It also lists previous roles as {escape(former_roles)}.</p>'
-        f'<div class="about-tags">{tags}</div>'
-        '<details class="research-links"><summary>Explore selected research '
-        '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-        'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-        '<path d="M12 5v14M5 12h14"/></svg></summary>'
-        f'{links}<p>Selected co-authored research. Publication links do not imply '
-        'institutional endorsement of this independent educational site.</p></details>'
-    )
-    schema = {
-        "@context": "https://schema.org",
-        "@type": "Person",
-        "name": data["person"].removeprefix("Dr "),
-        "honorificPrefix": "Dr",
-        "knowsAbout": profile["topics"],
+def robots(page: str) -> str:
+    return 'index, follow' if APPROVED and page != '404.html' else 'noindex, nofollow'
+
+
+def url_meta(page: str, separator: str = '') -> str:
+    """Canonical and sharing URLs, once a homepage URL is configured."""
+    if not BASE or page == '404.html':
+        return ''
+    url = BASE if page == 'index.html' else BASE + page
+    tags = (f'<link rel="canonical" href="{e(url)}">', f'<meta property="og:url" content="{e(url)}">',
+            f'<meta property="og:image" content="{e(BASE + "assets/social-card.png")}">')
+    return ''.join(separator + tag for tag in tags)
+
+
+def brand(home: str, label: bool = False) -> str:
+    aria = f' aria-label="{C["brand"]["home_label"]}"' if label else ''
+    return f'<a class="brand" href="{home}"{aria}><span class="brand-mark">{C["brand"]["mark"]}<span>·</span></span><span class="brand-name">{NAME}<span>{T["tagline"].upper()}</span></span></a>'
+
+
+def paragraphs(items) -> str:
+    return ''.join(f'<p>{p}</p>' for p in items)
+
+
+def resource_tokens(resource: dict) -> dict:
+    return {'step_count': sum('step' in block for block in resource['blocks']), 'date': sc.long_date(resource['updated'])}
+
+
+def profile() -> str:
+    about = C['home']['about']
+    edu = DATA['education_profile']
+    publications = {item['url']: item for item in DATA['publications']}
+    professional = DATA['professional_profile']
+    qualifications = '; '.join(sc.fill(about['qualification_format'], {'award': e(q['award']), 'year': str(q['year']), 'institution': e(q['institution'])}) for q in professional['qualifications'])
+    roles = '; '.join(sc.fill(about['role_format'], {'title': e(r['title']), 'organisation': e(r['organisation'])}) for r in professional['former_roles'])
+    tags = ''.join(f'<span>{e(topic)}</span>' for topic in edu['topics'])
+    links = ''.join(
+        f'<a href="{e(item["url"])}" target="_blank" rel="noopener noreferrer">{e(item["title"])} · {e(item["journal"])} ({e(str(item["year"]))}) ↗</a>'
+        for item in (publications[url] for url in edu['featured_publication_urls']))
+    return (f'<span class="name-label">{about["name_label"]}</span><p class="large-copy">{e(edu["heading"])}</p>'
+            f'<p>{e(edu["experience"])}</p><p>{e(edu["purpose"])}</p>'
+            f'<p>{sc.fill(about["profile"], {"qualifications": qualifications, "roles": roles})}</p>'
+            f'<div class="about-tags">{tags}</div><details class="research-links"><summary>{about["research_summary"]} {icon("plus")}</summary>'
+            f'{links}<p>{about["research_note"]}</p></details>')
+
+
+def schema() -> str:
+    person = {'@context': 'https://schema.org', '@type': 'Person', 'name': NAME,
+              'honorificPrefix': DATA['honorific_prefix'], 'knowsAbout': DATA['education_profile']['topics']}
+    return '<script type="application/ld+json">' + json.dumps(person, ensure_ascii=False, separators=(',', ':')) + '</script>'
+
+
+def offers() -> str:
+    h = C['home']['offers']
+    cards = ''
+    for offer in DATA['education_offers']:
+        href = f'{GEOCHEMICAL_URL}/{offer["geochemical_service"]}' if 'geochemical_service' in offer else offer['href']
+        cards += (f'<article class="subject-card offer-card"><p class="eyebrow">{e(offer["label"])}</p><h3>{e(offer["title"])}</h3>'
+                  f'<p>{e(offer["summary"])}</p><p class="offer-boundary">{e(offer["boundary"])}</p>'
+                  f'<a class="text-link" href="{e(href)}" data-offer-level="{e(offer.get("level", ""))}">{e(offer["link_label"])} ↗</a></article>')
+    return (f'<div class="subject-grid">{cards}</div><p class="offer-example">{h["example_intro"]} '
+            f'<a href="resources/{h["example_resource"]}.html">{h["example_link"]}</a></p>')
+
+
+def home_page() -> str:
+    h = C['home']
+    hero, card, lv, sj, ap, ab, rs, fq, ct, ft = (h[k] for k in ('hero', 'card', 'levels', 'subjects', 'approach', 'about', 'resources', 'faq', 'contact', 'footer'))
+    nav = ''.join(f'<a href="{item["href"]}">{item["label"]}</a>' for item in h['nav'])
+    steps = ''.join(f'<span>{i:02d} &nbsp; {step}</span>' for i, step in enumerate(card['steps'], 1))
+    tabs = ''.join(f'<button class="level-tab" type="button" id="tab-{x["id"]}" aria-controls="panel-{x["id"]}" data-level="{x["id"]}">{x["tab"]}</button>' for x in lv['items'])
+    panels = ''.join(
+        f'<article class="level-panel" id="panel-{x["id"]}" aria-labelledby="tab-{x["id"]}"><div class="panel-intro"><span class="section-number">{i:02d} / {x["tab"].upper()}</span>'
+        f'<h3>{x["title"]}</h3><p>{x["text"]}</p><span class="level-caption">{x["caption"]}</span></div><div class="panel-detail">'
+        + ''.join(f'<div class="support-point">{icon("check")}<div><h4>{p["title"]}</h4><p>{p["text"]}</p></div></div>' for p in x['points'])
+        + f'<a class="text-link" href="#contact" data-select-level="{x["id"]}">{x["link"]} {icon("next")}</a></div><p class="panel-note">{x["note"]}</p></article>'
+        for i, x in enumerate(lv['items'], 1))
+    subjects = ''.join(f'<article class="subject-card"><span class="subject-icon">{icon(s["icon"])}</span><h3>{s["title"]}</h3><p>{s["text"]}</p></article>' for s in sj['items'])
+    approach_steps = ''.join(f'<article><span class="step-number">{i:02d}</span><h3>{s["title"]}</h3><p>{s["text"]}</p></article>' for i, s in enumerate(ap['steps'], 1))
+    cards = ''.join(
+        f'<a class="resource-card" href="resources/{r["slug"]}.html"><div class="resource-top"><span>{i:02d} / {r["card"]["label"]}</span>{icon("arrow")}</div>'
+        f'<h3>{r["card"]["title"]}</h3><h4>{r["card"]["subtitle"]}</h4><p>{sc.fill(r["card"]["text"], resource_tokens(r))}</p><span class="resource-bottom">{rs["open"]} {icon("next")}</span></a>'
+        for i, r in enumerate((r for r in C['resources'] if 'card' in r), 1))
+    faq = ''.join(f'<details><summary>{item["question"]}{icon("plus")}</summary><p>{item["answer"]}</p></details>' for item in fq['items'])
+    levels = ''.join(f'<option value="{x["id"]}">{x["tab"]}</option>' for x in lv['items'])
+    return f'''<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="{h['description']}">
+  <meta name="robots" content="{robots('index.html')}">
+  <meta name="theme-color" content="#183c33">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{h['title']}">
+  <meta property="og:description" content="{h['og_description']}">
+  <meta property="og:locale" content="en_GB">
+  <meta name="twitter:card" content="summary_large_image">{url_meta('index.html', HEAD_LINE)}
+  <title>{h['title']}</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/styles.css">
+  <script src="site-config.js" defer></script>
+  <script src="assets/main.js" defer></script>
+  {schema()}
+</head>
+<body id="top" data-print-title="{h['title']}"><a class="skip-link" href="#main">{h['skip']}</a>
+<header class="site-header">
+  <div class="wrap header-inner">
+    {brand('index.html', label=True)}
+    <button class="menu-toggle" type="button" aria-controls="primary-nav" aria-expanded="false">{h['menu']} <span aria-hidden="true">☰</span></button>
+    <nav class="primary-nav" id="primary-nav" aria-label="{h['nav_label']}">
+      {nav}<a class="nav-cta" href="#contact">{h['nav_cta']} {icon('arrow')}</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+<section class="hero wrap" aria-labelledby="hero-title">
+  <div class="hero-copy"><p class="eyebrow"><span class="tiny-star">✳</span> {hero['eyebrow']}</p><h1 id="hero-title">{hero['title']}</h1><p class="hero-description">{hero['description']}</p><div class="hero-actions"><a class="button primary" href="#support">{hero['primary']} {icon('arrow')}</a><a class="quiet-link" href="#about">{hero['secondary']} {icon('next')}</a></div><div class="hero-footnote"><span class="small-line"></span> {hero['footnote']}</div></div>
+  <div class="science-card" aria-label="{card['label']}"><div class="science-top"><span>{card['top']}</span>{icon('spark')}</div><img class="clarity-art" src="assets/clarity.svg" width="560" height="490" alt="" fetchpriority="high"><div class="science-sticker">{card['sticker']}</div><div class="science-bottom">{steps}</div></div>
+</section>
+<div class="topic-strip"><div class="wrap topic-list">{'<i>✳</i>'.join(f'<span>{t}</span>' for t in h['topics'])}</div></div>
+<section class="section wrap offer-paths" aria-labelledby="offer-paths-heading">
+  <div class="section-heading"><div><p class="eyebrow">{h['offers']['eyebrow']}</p><h2 id="offer-paths-heading">{h['offers']['heading']}</h2></div><p>{h['offers']['text']}</p></div>
+  {offers()}
+</section>
+<section class="section wrap" id="support" aria-labelledby="support-heading"><div class="section-heading"><div><p class="eyebrow">{lv['eyebrow']}</p><h2 id="support-heading">{lv['heading']}</h2></div><p>{lv['text']}</p></div><div class="level-tabs" aria-label="{lv['tabs_label']}">{tabs}</div><div class="level-panels">{panels}</div></section>
+<section class="subjects-section section" id="subjects" aria-labelledby="subjects-heading"><div class="wrap"><div class="section-heading"><div><p class="eyebrow">{sj['eyebrow']}</p><h2 id="subjects-heading">{sj['heading']}</h2></div><p>{sj['text']}</p></div><div class="subject-grid">{subjects}</div></div></section>
+<section class="section wrap approach-section" id="approach" aria-labelledby="approach-heading"><div class="section-heading"><div><p class="eyebrow">{ap['eyebrow']}</p><h2 id="approach-heading">{ap['heading']}</h2></div><p>{ap['text']}</p></div><div class="steps">{approach_steps}</div><div class="integrity-note">{icon('spark')}<p>{ap['integrity']}</p></div></section>
+<section class="about-section" id="about" aria-labelledby="about-heading"><div class="wrap about-grid"><div class="about-left"><p class="eyebrow">{ab['eyebrow']}</p><h2 id="about-heading">{ab['heading']}</h2><div class="experience"><span>{ab['experience_number']}<span>{ab['experience_suffix']}</span></span><p>{ab['experience_text']}</p></div><p class="experience-note">{ab['experience_note']}</p></div><div class="about-copy">{profile()}</div></div></section>
+<section class="section wrap" id="resources" aria-labelledby="resources-heading"><div class="section-heading"><div><p class="eyebrow">{rs['eyebrow']}</p><h2 id="resources-heading">{rs['heading']}</h2></div><p>{rs['text']}</p></div><div class="resource-grid">{cards}</div></section>
+<section class="faq-section section wrap" aria-labelledby="faq-heading"><div><p class="eyebrow">{fq['eyebrow']}</p><h2 id="faq-heading">{fq['heading']}</h2><p>{fq['text']}</p></div><div class="faq-list">{faq}</div></section>
+<section class="contact-section" id="contact" aria-labelledby="contact-heading"><div class="wrap contact-grid"><div class="contact-copy"><p class="eyebrow">{ct['eyebrow']}</p><h2 id="contact-heading">{ct['heading']}</h2><p>{ct['text']}</p><div class="contact-note"><span>{icon('book')}</span><p>{ct['note']}</p></div><p class="contact-status" id="contact-status">{ct['status']}</p><a class="direct-email" id="direct-email" hidden></a></div>
+<div class="contact-form-card"><form id="enquiry-form" action="#contact" method="get"><fieldset id="enquiry-fields" disabled><legend class="sr-only">{ct['legend']}</legend><div class="form-row"><div class="field"><label for="enquiry-name">{ct['name']}</label><input id="enquiry-name" name="name" autocomplete="name" maxlength="100" required placeholder="{ct['name_placeholder']}"></div><div class="field"><label for="enquiry-email">{ct['email']}</label><input id="enquiry-email" name="email" type="email" autocomplete="email" maxlength="200" required placeholder="{ct['email_placeholder']}"></div></div><div class="field"><label for="enquiry-level">{ct['level']}</label><select id="enquiry-level" name="level" required><option value="">{ct['level_placeholder']}</option>{levels}<option value="other">{ct['level_other']}</option></select></div><div class="field"><label for="enquiry-topic">{ct['topic']}</label><input id="enquiry-topic" name="topic" maxlength="160" required placeholder="{ct['topic_placeholder']}"></div><div class="field"><label for="enquiry-message">{ct['message']}</label><textarea id="enquiry-message" name="message" rows="4" maxlength="1800" required placeholder="{ct['message_placeholder']}"></textarea></div><label class="checkbox-label"><input id="enquiry-adult" name="adult" type="checkbox" required><span>{ct['adult']}</span></label><button class="button primary form-submit" type="submit">{ct['submit']} {icon('next')}</button><p class="form-footnote">{ct['footnote']}</p></fieldset></form><noscript><p class="notice">{ct['noscript']}</p></noscript><div id="draft-panel" class="draft-panel" hidden><h3>{ct['draft_heading']}</h3><p id="draft-status" role="status" aria-live="polite"></p><label class="sr-only" for="draft-text">{ct['draft_label']}</label><textarea id="draft-text" rows="9" readonly></textarea><div class="draft-actions"><a class="button primary" id="open-email" hidden>{ct['open']} {icon('arrow')}</a><button class="button secondary" id="copy-draft" type="button">{ct['copy']}</button></div><p class="form-footnote">{ct['draft_note']}</p></div></div></div></section>
+</main><footer class="site-footer"><div class="wrap footer-inner"><a class="footer-brand" href="index.html">{NAME}<span>{T['motto']}</span></a><div class="footer-links"><a href="privacy.html">{ft['privacy']}</a><a href="#top">{ft['back_to_top']}</a><small>© <span data-year>{date.today().year}</span> {ft['copyright_holder']}</small></div></div></footer></body></html>
+'''
+
+
+def privacy_page() -> str:
+    p = C['privacy']
+    sections = ''.join(f'<h2>{s["heading"]}</h2>{paragraphs(s["paragraphs"])}' for s in p['sections'])
+    return (f'<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+            f'<meta name="robots" content="{robots("privacy.html")}"><meta name="description" content="{p["description"]}">{url_meta("privacy.html")}'
+            f'<title>{p["title"]} | {NAME}</title><link rel="icon" href="assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="assets/styles.css">'
+            f'<script src="site-config.js" defer></script><script src="assets/main.js" defer></script></head><body><header class="site-header article-header">'
+            f'<div class="wrap header-inner">{brand("index.html")}<a class="back-link" href="index.html">{T["back_link"]}</a></div></header>'
+            f'<main class="article-main"><p class="eyebrow">{p["eyebrow"]}</p><h1>{p["heading"]}</h1><p class="article-lead">{p["lead"]}</p>'
+            f'<div class="notice" data-preview-only>{p["notice"]}</div>{sections}'
+            f'<p class="resource-footer">{sc.fill(p["updated_note"], {"date": sc.long_date(p["updated"])})}</p></main>'
+            f'<footer class="footer-simple">{p["footer"]}</footer></body></html>\n')
+
+
+def not_found_page() -> str:
+    n = C['not_found']
+    return (f'<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+            f'<meta name="description" content="{n["description"]}"><meta name="robots" content="{robots("404.html")}"><title>{n["title"]} | {NAME}</title>'
+            f'<style>{NOT_FOUND_STYLE}</style></head><body><main><small>{n["label"]}</small><h1>{n["heading"]}</h1><p>{n["text"]}</p>'
+            f'<p><a id="home-link" href="{e(BASE or "index.html")}">{T["back_link"]}</a></p></main></body></html>\n')
+
+
+def worksheet_page(r: dict) -> str:
+    rp = C['resource_page']
+    page = f'resources/{r["slug"]}.html'
+    tokens = resource_tokens(r)
+    blocks, number = '', 0
+    for block in r['blocks']:
+        if 'step' in block:
+            number += 1
+            blocks += f'\n<section class="worksheet-step"><h2>{number}. {block["step"]}</h2><p>{block["text"]}</p>{WRITING_LINE * block["lines"]}</section>'
+        else:
+            blocks += f'\n<div class="example-block">{paragraphs(block["example"])}</div>'
+    description = sc.fill(r['description'], tokens)
+    return (f'<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+            f'<meta name="robots" content="{robots(page)}"><meta name="description" content="{description}"><meta name="theme-color" content="#183c33">{url_meta(page)}'
+            f'<title>{r["title"]} | {NAME}</title><link rel="icon" href="../assets/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../assets/styles.css">'
+            f'<script src="../site-config.js" defer></script><script src="../assets/main.js" defer></script></head><body><header class="site-header article-header">'
+            f'<div class="wrap header-inner">{brand("../index.html")}<a class="back-link" href="../index.html#resources">{rp["all_resources"]}</a></div></header>'
+            f'<main class="article-main" id="main"><p class="eyebrow">{rp["eyebrow"]}</p><h1>{r["title"]}</h1><p class="article-lead">{sc.fill(r.get("lead", r["description"]), tokens)}</p>'
+            f'<div class="article-actions"><button class="button primary" type="button" data-print>{rp["print"]} {icon("print")}</button>'
+            f'<a class="button secondary" href="{r["slug"]}.txt" download>{rp["download"]}</a></div><p>{r["intro"]}</p>{blocks}'
+            f'<div class="article-end"><h2>{rp["end_heading"]}</h2><p>{rp["end_text"]}</p><a class="text-link" href="../index.html#support">{rp["end_link"]} {icon("next")}</a></div>'
+            f'<p class="resource-footer">{rp["footer_note"]} · {tokens["date"]}</p></main><footer class="footer-simple">{rp["footer"]}</footer></body></html>\n')
+
+
+def worked_example_page(r: dict) -> str:
+    rp = C['resource_page']
+    page = f'resources/{r["slug"]}.html'
+    tokens = resource_tokens(r)
+    steps = ''.join(f'    <section class="worksheet-step"><h2>{i}. {b["step"]}</h2><p>{b["text"]}</p></section>\n' for i, b in enumerate(r['blocks'], 1))
+    end = r['end']
+    return f'''<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="{robots(page)}">
+  <meta name="description" content="{sc.fill(r['description'], tokens)}">
+  <meta name="theme-color" content="#183c33">{url_meta(page, HEAD_LINE)}
+  <title>{r['title']} | {NAME}</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../assets/styles.css">
+  <script src="../site-config.js" defer></script>
+  <script src="../assets/main.js" defer></script>
+</head>
+<body>
+  <header class="site-header article-header"><div class="wrap header-inner">{brand('../index.html')}<a class="back-link" href="../index.html#offer-paths-heading">{rp['learning_paths']}</a></div></header>
+  <main class="article-main" id="main">
+    <p class="eyebrow">{rp['worked_example_eyebrow']}</p>
+    <h1>{r['title']}</h1>
+    <p class="article-lead">{sc.fill(r.get('lead', r['description']), tokens)}</p>
+    <div class="article-actions"><button class="button primary" type="button" data-print>{rp['print']}</button></div>
+    <div class="example-block">{paragraphs(r['example'])}</div>
+{steps}    <div class="article-end"><h2>{end['heading']}</h2><p>{end['text']}</p><a class="text-link" href="{end['link_resource']}.html">{end['link']}</a></div>
+    <p class="resource-footer">{r['footer_note']} · {tokens['date']}</p>
+  </main>
+  <footer class="footer-simple">{rp['footer']}</footer>
+</body>
+</html>
+'''
+
+
+def text_version(r: dict) -> str:
+    tokens = resource_tokens(r)
+    return '\n'.join(sc.fill(line, tokens) for line in r['text_lines']) + '\n' + tokens['date'] + '\n'
+
+
+def site_config() -> str:
+    service = DATA['enquiry_service']
+    config = {
+        'contactEmail': CONFIG['contact_email'],
+        'siteUrl': BASE,
+        'launchApproved': APPROVED,
+        'enquiryEndpoint': service['endpoint'],
+        'turnstileSiteKey': service['turnstile_site_key'],
+        'enquiryServiceEnabled': service['enabled'],
+        'messages': C['messages'],
     }
-    schema_html = (
-        '<script type="application/ld+json">'
-        + json.dumps(schema, ensure_ascii=False, separators=(",", ":"))
-        + "</script>"
-    )
-    offer_cards = "".join(
-        '<article class="subject-card offer-card">'
-        f'<p class="eyebrow">{escape(offer["label"])}</p>'
-        f'<h3>{escape(offer["title"])}</h3>'
-        f'<p>{escape(offer["summary"])}</p>'
-        f'<p class="offer-boundary">{escape(offer["boundary"])}</p>'
-        f'<a class="text-link" href="{escape(offer["href"], quote=True)}" '
-        f'data-offer-level="{escape(offer.get("level", ""), quote=True)}">'
-        f'{escape(offer["link_label"])} ↗</a></article>'
-        for offer in data["education_offers"]
-    )
-    offers_html = (
-        f'<div class="subject-grid">{offer_cards}</div>'
-        '<p class="offer-example">See how a model claim can be tested: '
-        '<a href="resources/model-assumptions-example.html">read the worked critique ↗</a></p>'
-    )
-    source = PAGE.read_text(encoding="utf-8")
-    source = replace_block(source, "PROFILE", profile_html)
-    source = replace_block(source, "OFFERS", offers_html)
-    return replace_block(source, "SCHEMA", schema_html)
+    return ('/* Generated by tools/build.py from shared_data/. Public values only: never passwords or tokens.\n'
+            '   Change shared_data/education_site.json or run tools/configure.py, not this file. */\n'
+            'window.PETER_WADE_SITE = Object.freeze(' + json.dumps(config, indent=2, ensure_ascii=True) + ');\n')
 
 
-def render_config(data: dict) -> str:
-    source = CONFIG.read_text(encoding="utf-8")
-    match = re.search(r"Object\.freeze\((\{.*?\})\);", source, re.S)
-    if not match:
-        raise ValueError(f"Could not read {CONFIG}")
-    config = json.loads(match[1])
-    service = data["enquiry_service"]
-    config.update(
-        enquiryEndpoint=service["endpoint"],
-        turnstileSiteKey=service["turnstile_site_key"],
-        enquiryServiceEnabled=service["enabled"],
-    )
-    return source[:match.start(1)] + json.dumps(config, indent=2, ensure_ascii=True) + source[match.end(1):]
+def social_card() -> str:
+    """Source for the 1200×630 social-sharing image (render with the workspace's tools/render_assets.py)."""
+    card = C['social_card']
+    css = (ROOT / 'tools' / 'social-card.css').read_text(encoding='utf-8')
+    return (f'<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><style>{css}</style></head><body>'
+            f'<p class="kicker">{card["eyebrow"]}</p><h1>{C["home"]["hero"]["title"]}</h1><p class="sub">{card["subtitle"]}</p>'
+            f'<p class="foot">{T["tagline"].upper()}</p><div class="panel"><img src="../site/assets/clarity.svg" alt=""></div></body></html>\n')
+
+
+def outputs() -> dict[Path, str]:
+    pages = {'index.html': home_page(), 'privacy.html': privacy_page(), '404.html': not_found_page()}
+    files = {}
+    for r in C['resources']:
+        if r['kind'] == 'worksheet':
+            pages[f'resources/{r["slug"]}.html'] = worksheet_page(r)
+            files[f'resources/{r["slug"]}.txt'] = text_version(r)
+        else:
+            pages[f'resources/{r["slug"]}.html'] = worked_example_page(r)
+    files['site-config.js'] = site_config()
+    files['robots.txt'] = ('User-agent: *\nAllow: /\n' if APPROVED else 'User-agent: *\nDisallow: /\n') + (f'\nSitemap: {BASE}sitemap.xml\n' if APPROVED and BASE else '')
+    if BASE:
+        urls = [BASE if page == 'index.html' else BASE + page for page in sorted(pages) if page != '404.html']
+        files['sitemap.xml'] = '\n'.join(['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+                                         + [f'  <url><loc>{e(url)}</loc></url>' for url in urls] + ['</urlset>', ''])
+    return {SITE / name: text for name, text in (pages | files).items()} | {ROOT / 'tools' / 'social-card.html': social_card()}
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="Fail if the page is stale")
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument('--check', action='store_true', help='fail if any generated file is out of date')
     args = parser.parse_args()
-    data = json.loads(SHARED.read_text(encoding="utf-8"))
-    outputs = ((PAGE, render(data)), (CONFIG, render_config(data)))
+    owned = {*SITE.glob('*.html'), *SITE.glob('resources/*.html'), *SITE.glob('resources/*.txt'), SITE / 'sitemap.xml'}
+    owned = {path for path in owned if path.exists()}
+    problems = sc.write_outputs(outputs(), args.check, owned)
     if args.check:
-        if any(rendered != path.read_text(encoding="utf-8") for path, rendered in outputs):
-            parser.error("Shared educational output is stale; run tools/build.py")
-        print("Shared educational output is current.")
+        if problems:
+            print('\n'.join(problems), file=sys.stderr)
+            sys.exit('Educational site is out of date with shared_data; run tools/build.py')
+        print('Educational site is current with shared_data.')
     else:
-        for path, rendered in outputs:
-            if rendered != path.read_text(encoding="utf-8"):
-                path.write_text(rendered, encoding="utf-8")
-        print("Rendered shared educational output.")
+        print(f'Built the educational site from shared_data ({len(problems)} files updated).')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

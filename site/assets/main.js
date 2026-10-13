@@ -2,6 +2,9 @@
   'use strict';
   document.documentElement.classList.add('js');
   const config = window.PETER_WADE_SITE || {};
+  // Visitor-facing text comes from shared_data via the generated site-config.js.
+  const messages = config.messages || {};
+  const fillIn = (template, values) => String(template || '').replace(/\{(\w+)\}/g, (match, key) => (key in values ? values[key] : match));
   const email = typeof config.contactEmail === 'string' ? config.contactEmail.trim() : '';
   const emailReady = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email) && !/[\r\n?#]/.test(email);
   const contactReady = config.launchApproved === true && emailReady;
@@ -50,12 +53,12 @@
   }
   document.querySelectorAll('[data-select-level]').forEach(link=>link.addEventListener('click',()=>{const field=document.getElementById('enquiry-level');if(field)field.value=link.dataset.selectLevel;}));
   document.querySelectorAll('[data-print]').forEach(button=>button.addEventListener('click',()=>window.print()));
-  document.querySelectorAll('[data-contact-email]').forEach(el=>{if(contactReady){el.textContent=email;el.href='mailto:'+email;}else{el.textContent='Contact details are pending in this preview.';el.removeAttribute('href');}});
+  document.querySelectorAll('[data-contact-email]').forEach(el=>{if(contactReady){el.textContent=email;el.href='mailto:'+email;}else{el.removeAttribute('href');}});
   document.querySelectorAll('[data-preview-only]').forEach(el=>{el.hidden=ready;});
   const status=document.getElementById('contact-status');
   const direct=document.getElementById('direct-email');
   if(ready){
-    if(status)status.textContent=sendReady?'Prepare a draft, then review and send it after verification. Scope, fees and availability are agreed separately.':'This enquiry tool prepares an email draft. Nothing is sent or stored by the website. Scope, fees and availability are agreed separately.';
+    if(status)status.textContent=sendReady?messages.status_send:messages.status_draft;
     if(direct && contactReady){direct.textContent=email;direct.href='mailto:'+email;direct.hidden=false;}
   }
 
@@ -75,7 +78,7 @@
     sendButton=document.createElement('button');
     sendButton.type='button';
     sendButton.className='button primary';
-    sendButton.textContent='Send enquiry to Peter';
+    sendButton.textContent=messages.send;
     sendButton.hidden=true;
     verification.appendChild(sendButton);
     panel.appendChild(verification);
@@ -83,19 +86,19 @@
     script.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
     script.async=true;
     script.onload=()=>{turnstileWidget=window.turnstile.render(challenge,{sitekey:config.turnstileSiteKey,action:'enquiry'});};
-    script.onerror=()=>{draftStatus.textContent='Verification is unavailable. Your draft has not been sent.';};
+    script.onerror=()=>{draftStatus.textContent=messages.verification_unavailable;};
     document.head.appendChild(script);
     sendButton.addEventListener('click',async()=>{
       const token=turnstileWidget===undefined?'':window.turnstile.getResponse(turnstileWidget);
-      if(!token){draftStatus.textContent='Complete the verification before sending.';return;}
+      if(!token){draftStatus.textContent=messages.verification_required;return;}
       sendButton.disabled=true;
-      draftStatus.textContent='Sending your enquiry…';
+      draftStatus.textContent=messages.sending;
       try{
         const response=await fetch(config.enquiryEndpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({site:'education',name:form.elements.namedItem('name').value,email:form.elements.namedItem('email').value,message:draftText.value,token,fax_organisation:''})});
         if(!response.ok)throw new Error('Delivery not confirmed');
-        draftStatus.textContent='Your enquiry has been sent. Please allow time for a reply.';
+        draftStatus.textContent=messages.sent;
       }catch(_error){
-        draftStatus.textContent='Delivery was not confirmed. Please keep or copy your draft and try again later.';
+        draftStatus.textContent=messages.not_confirmed;
         sendButton.disabled=false;
         window.turnstile.reset(turnstileWidget);
       }
@@ -110,20 +113,21 @@
     const get=key=>String(data.get(key)||'').trim();
     const select=document.getElementById('enquiry-level');
     const label=select.options[select.selectedIndex].textContent;
-    const subject='Educational enquiry: '+get('topic').replace(/[\r\n]/g,' ');
-    const text=['Hello Peter,','',get('message'),'','My details:','Name: '+get('name'),'Email: '+get('email'),'Learning stage: '+label,'Subject / topic: '+get('topic'),'Enquiry made by an adult or parent/guardian.','','Thank you,',get('name')].join('\n');
+    const values={name:get('name'),email:get('email'),level:label,topic:get('topic'),message:get('message')};
+    const subject=fillIn(messages.subject,values).replace(/[\r\n]/g,' ');
+    const text=(messages.draft_lines||[]).map(line=>fillIn(line,values)).join('\n');
     draftText.value=text;
     panel.hidden=false;
     if(contactReady){
       emailLink.href='mailto:'+email+'?subject='+encodeURIComponent(subject)+'&body='+encodeURIComponent(text);
       emailLink.hidden=false;
-      draftStatus.textContent='Your draft is ready. It has not been sent. Open your email app to review it and send it to '+email+'. You can also copy the text below.';
+      draftStatus.textContent=fillIn(messages.ready_email,{email});
     }else if(sendReady){
       emailLink.removeAttribute('href');emailLink.hidden=true;
-      draftStatus.textContent='Your draft is ready. Review it, complete verification and press Send. Nothing has been sent yet.';
+      draftStatus.textContent=messages.ready_send;
     }else{
       emailLink.removeAttribute('href');emailLink.hidden=true;
-      draftStatus.textContent='Preview only: Peter’s contact address has not been connected. Nothing has been sent. You can copy this draft, but enquiries are not open through this preview.';
+      draftStatus.textContent=messages.ready_preview;
     }
     if(sendButton){sendButton.hidden=false;sendButton.disabled=false;}
     panel.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'nearest'});
@@ -133,10 +137,10 @@
     try{
       if(!navigator.clipboard || !window.isSecureContext)throw new Error('Clipboard unavailable');
       await navigator.clipboard.writeText(draftText.value);
-      draftStatus.textContent='Draft copied. Nothing has been sent.';
+      draftStatus.textContent=messages.copied;
     }catch(_error){
       draftText.focus();draftText.select();draftText.setSelectionRange(0,draftText.value.length);
-      draftStatus.textContent='Your draft is selected. Use Copy on your device, or press Ctrl+C / Command+C. Nothing has been sent.';
+      draftStatus.textContent=messages.selected;
     }
   });
 })();

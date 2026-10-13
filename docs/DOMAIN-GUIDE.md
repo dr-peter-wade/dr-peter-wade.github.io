@@ -69,6 +69,6 @@ Remove conflicting **web** A/AAAA/CNAME records only after checking what current
 For a subdomain such as `peter.wade.uk`, after obtaining control of `wade.uk`, set a CNAME named `peter` to `YOUR-USERNAME.github.io` instead of configuring apex A records for a domain you do not own. Set that full subdomain as the custom domain in Pages.
 
 4. Allow DNS verification and HTTPS certificate provisioning, then enable **Enforce HTTPS** when GitHub makes it available. Test both the chosen hostname and the `www` route if configured. GitHub notes DNS propagation can take up to 24 hours; certificates may not be immediately ready.
-5. Run `tools/configure.py` with the final HTTPS homepage URL, validate and redeploy. GitHub Actions deployments use the custom domain stored in Pages settings, not a `CNAME` file.
+5. Run `tools/configure.py` in the shared workspace with the final HTTPS homepage URL, validate and redeploy. GitHub Actions deployments use the custom domain stored in Pages settings, not a `CNAME` file.
 
 Official instructions: [Managing a custom domain](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site), [Verifying domain ownership](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/verifying-your-custom-domain-for-github-pages).

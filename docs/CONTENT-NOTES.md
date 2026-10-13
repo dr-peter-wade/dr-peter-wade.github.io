@@ -1,6 +1,6 @@
 # Content and factual boundaries
 
-Prepared from the supplied professional CV, Peter's supplied contract profile and the requested educational/tutoring direction. Private source documents remain in the umbrella workspace's `docs/` directory, not in the public static site.
+Prepared from the supplied professional CV, Peter's supplied contract profile and the requested educational/tutoring direction. Private source documents remain in the umbrella workspace's `docs/` directory, not in the public static site. All published wording is stored in the workspace's `shared_data/` (`education_site.json` for this site's copy, `peter.json` for Peter's profile, offers and research), so review and edit it there.
 
 The website uses the CV's description of Dr Peter Wade as a research chemist/geochemist, its research themes and named tools. The 40+ years statement refers to research, academia and industry, not to an independently verified history of private tutoring. Peter should check that the summary is current before publication.
 
