@@ -2,6 +2,8 @@
 """Validate this static site without external packages or network access."""
 from __future__ import annotations
 import argparse
+import base64
+import hashlib
 import json
 import re
 import sys
@@ -12,6 +14,26 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parents[1] / 'site'
 # Each page carries the site settings inline (tools/build.py), so they are read from the pages.
 SETTINGS = re.compile(r'window\.PETER_WADE_SITE = Object\.freeze\((\{.*?\})\);', re.S)
+POLICY = re.compile(r'<meta http-equiv="Content-Security-Policy" content="([^"]*)">')
+
+
+def policy_errors(text: str) -> list[str]:
+    """The page's own security policy must come before its inline style and scripts and admit each by hash,
+    or browsers would refuse to apply them."""
+    match = POLICY.search(text)
+    if not match:
+        return ['Missing Content-Security-Policy']
+    errors = []
+    first = min((i for i in (text.find('<style>'), text.find('<script>')) if i >= 0), default=len(text))
+    if match.start() > first:
+        errors.append('Content-Security-Policy comes after content it governs')
+    directives = {part.split()[0]: part.split()[1:] for part in match.group(1).split(';') if part.strip()}
+    for directive, element in (('script-src', 'script'), ('style-src', 'style')):
+        for body in re.findall(rf'<{element}>(.*?)</{element}>', text, re.S):
+            source = "'sha256-" + base64.b64encode(hashlib.sha256(body.encode('utf-8')).digest()).decode() + "'"
+            if source not in directives.get(directive, []):
+                errors.append(f'Inline {element} is not admitted by the Content-Security-Policy')
+    return errors
 
 class Document(HTMLParser):
     def __init__(self, path: Path) -> None:
@@ -54,7 +76,9 @@ def main() -> int:
     docs: dict[Path, Document] = {}
     for path in sorted(ROOT.rglob('*.html')):
         doc = Document(path)
-        doc.feed(path.read_text(encoding='utf-8'))
+        text = path.read_text(encoding='utf-8')
+        doc.feed(text)
+        doc.errors.extend(policy_errors(text))
         docs[path.resolve()] = doc
         if not doc.lang: doc.errors.append('Missing HTML language')
         if doc.h1 != 1: doc.errors.append(f'Expected one h1, found {doc.h1}')
@@ -97,7 +121,7 @@ def main() -> int:
     if errors:
         print('\n'.join('ERROR: ' + e for e in errors), file=sys.stderr)
         return 1
-    print(f'PASS: {len(docs)} HTML pages; local targets, fragments, core metadata and configuration checked.')
+    print(f'PASS: {len(docs)} HTML pages; local targets, fragments, core metadata, security policies and configuration checked.')
     if not args.release: print('Preview validation only. Run --release after completing owner approval and configuration.')
     return 0
 

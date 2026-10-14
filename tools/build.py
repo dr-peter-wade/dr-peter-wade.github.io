@@ -17,6 +17,7 @@ import json
 import sys
 from datetime import date
 from pathlib import Path
+from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / 'site'
@@ -70,12 +71,47 @@ def icon(name: str) -> str:
 
 
 def head_assets(prefix: str = '') -> str:
-    return f'<link rel="icon" href="{prefix}assets/favicon.svg" type="image/svg+xml"><style>{STYLES}</style>'
+    return (f'<link rel="icon" href="{prefix}assets/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="{prefix}apple-touch-icon.png">'
+            f'<style>{STYLES}</style>')
+
+
+def security_policy(style: str, scripts: tuple[str, ...] = ()) -> str:
+    """The page's Content-Security-Policy. GitHub Pages cannot send headers, so it travels in the page:
+    the inline style and scripts are admitted by hash, and the enquiry service's origins only when it is on."""
+    service = DATA['enquiry_service']
+    challenge = 'https://challenges.cloudflare.com'
+    sending = [challenge] if service['enabled'] else []
+    endpoint = ['{0.scheme}://{0.netloc}'.format(urlsplit(service['endpoint']))] if service['enabled'] else []
+    policy = sc.content_security_policy({
+        'default-src': ["'self'"],
+        'script-src': [sc.sha256_source(script) for script in scripts] + sending or ["'none'"],
+        'style-src': [sc.sha256_source(style)],
+        'img-src': ["'self'", 'data:'],
+        # 'self' lets page tools such as Lighthouse read robots.txt.
+        'connect-src': ["'self'", *endpoint, *sending],
+        'frame-src': sending or ["'none'"],
+        'object-src': ["'none'"],
+        'base-uri': ["'self'"],
+        'form-action': ["'self'"],
+    })
+    if '"' in policy:
+        raise ValueError('The security policy must not contain double quotes')
+    return f'<meta http-equiv="Content-Security-Policy" content="{policy}">'
+
+
+def page_scripts() -> tuple[str, str]:
+    """The inline scripts every page carries: the site settings, then the page behaviour."""
+    return site_config(), MAIN_JS
+
+
+def page_policy() -> str:
+    """The security policy of a page that carries the site stylesheet and scripts."""
+    return security_policy(STYLES, page_scripts())
 
 
 def scripts() -> str:
     """The site settings, then the page behaviour, at the end of the body where the page is already parsed."""
-    code = (site_config(), MAIN_JS)
+    code = page_scripts()
     if any('</script' in part.lower() for part in code):
         raise ValueError('Inline script would close its own element')
     return ''.join(f'<script>{part}</script>' for part in code)
@@ -86,18 +122,24 @@ def robots(page: str) -> str:
 
 
 def url_meta(page: str, separator: str = '') -> str:
-    """Canonical and sharing URLs, once a homepage URL is configured."""
+    """Canonical and sharing URLs, once a homepage URL is configured. The card's size and type let
+    sharing previews draw it at once."""
     if not BASE or page == '404.html':
         return ''
     url = BASE if page == 'index.html' else BASE + page
+    width, height = sc.png_size(SITE / 'assets' / 'social-card.png')
+    alt = C['social_card']['image_alt']
     tags = (f'<link rel="canonical" href="{e(url)}">', f'<meta property="og:url" content="{e(url)}">',
-            f'<meta property="og:image" content="{e(BASE + "assets/social-card.png")}">')
+            f'<meta property="og:image" content="{e(BASE + "assets/social-card.png")}">', '<meta property="og:image:type" content="image/png">',
+            f'<meta property="og:image:width" content="{width}">', f'<meta property="og:image:height" content="{height}">',
+            f'<meta property="og:image:alt" content="{alt}">', f'<meta name="twitter:image:alt" content="{alt}">')
     return ''.join(separator + tag for tag in tags)
 
 
 def share_meta(page: str, title: str, description: str, separator: str = '') -> str:
     """Open Graph and card tags so every page previews properly when shared."""
-    tags = ('<meta property="og:type" content="website">', f'<meta property="og:title" content="{title}">',
+    tags = ('<meta property="og:type" content="website">', f'<meta property="og:site_name" content="{e(sc.plain(C["home"]["title"]))}">',
+            f'<meta property="og:title" content="{title}">',
             f'<meta property="og:description" content="{description}">', f'<meta property="og:locale" content="{LOCALE.replace("-", "_")}">',
             '<meta name="twitter:card" content="summary_large_image">')
     verification = [f'<meta name="{e(tool)}" content="{e(token)}">' for tool, token in CONFIG['site_verification'].items()] if page == 'index.html' else []
@@ -227,6 +269,7 @@ def home_page() -> str:
 <html lang="{LOCALE}">
 <head>
   <meta charset="utf-8">
+  {page_policy()}
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="{h['description']}">
   <meta name="robots" content="{robots('index.html')}">
@@ -249,14 +292,14 @@ def home_page() -> str:
 <main id="main">
 <section class="hero wrap" aria-labelledby="hero-title">
   <div class="hero-copy"><p class="eyebrow"><span class="tiny-star">✳</span> {hero['eyebrow']}</p><h1 id="hero-title">{hero['title']}</h1><p class="hero-description">{hero['description']}</p><div class="hero-actions"><a class="button primary" href="#support">{hero['primary']} {icon('arrow')}</a><a class="quiet-link" href="#about">{hero['secondary']} {icon('next')}</a></div><div class="hero-footnote"><span class="small-line"></span> {hero['footnote']}</div></div>
-  <div class="science-card" aria-label="{card['label']}"><div class="science-top"><span>{card['top']}</span>{icon('spark')}</div><img class="clarity-art" src="{CLARITY}" width="560" height="490" alt=""><div class="science-sticker">{card['sticker']}</div><div class="science-bottom">{steps}</div></div>
+  <div class="science-card" role="group" aria-label="{card['label']}"><div class="science-top"><span>{card['top']}</span>{icon('spark')}</div><img class="clarity-art" src="{CLARITY}" width="560" height="490" alt=""><div class="science-sticker">{card['sticker']}</div><div class="science-bottom">{steps}</div></div>
 </section>
 <div class="topic-strip"><div class="wrap topic-list">{'<i>✳</i>'.join(f'<span>{t}</span>' for t in h['topics'])}</div></div>
 <section class="section wrap offer-paths" aria-labelledby="offer-paths-heading">
   <div class="section-heading"><div><p class="eyebrow">{h['offers']['eyebrow']}</p><h2 id="offer-paths-heading">{h['offers']['heading']}</h2></div><p>{h['offers']['text']}</p></div>
   {offers()}
 </section>
-<section class="section wrap" id="support" aria-labelledby="support-heading"><div class="section-heading"><div><p class="eyebrow">{lv['eyebrow']}</p><h2 id="support-heading">{lv['heading']}</h2></div><p>{lv['text']}</p></div><div class="level-tabs" aria-label="{lv['tabs_label']}">{tabs}</div><div class="level-panels">{panels}</div></section>
+<section class="section wrap" id="support" aria-labelledby="support-heading"><div class="section-heading"><div><p class="eyebrow">{lv['eyebrow']}</p><h2 id="support-heading">{lv['heading']}</h2></div><p>{lv['text']}</p></div><div class="level-tabs" role="group" aria-label="{lv['tabs_label']}">{tabs}</div><div class="level-panels">{panels}</div></section>
 <section class="subjects-section section" id="subjects" aria-labelledby="subjects-heading"><div class="wrap"><div class="section-heading"><div><p class="eyebrow">{sj['eyebrow']}</p><h2 id="subjects-heading">{sj['heading']}</h2></div><p>{sj['text']}</p></div><div class="subject-grid">{subjects}</div></div></section>
 <section class="section wrap approach-section" id="approach" aria-labelledby="approach-heading"><div class="section-heading"><div><p class="eyebrow">{ap['eyebrow']}</p><h2 id="approach-heading">{ap['heading']}</h2></div><p>{ap['text']}</p></div><div class="steps">{approach_steps}</div><div class="integrity-note">{icon('spark')}<p>{ap['integrity']}</p></div></section>
 <section class="about-section" id="about" aria-labelledby="about-heading"><div class="wrap about-grid"><div class="about-left"><p class="eyebrow">{ab['eyebrow']}</p><h2 id="about-heading">{ab['heading']}</h2><div class="experience"><span>{ab['experience_number']}<span>{ab['experience_suffix']}</span></span><p>{ab['experience_text']}</p></div><p class="experience-note">{ab['experience_note']}</p></div><div class="about-copy">{profile()}</div></div></section>
@@ -271,7 +314,7 @@ def home_page() -> str:
 def privacy_page() -> str:
     p = C['privacy']
     sections = ''.join(f'<h2>{s["heading"]}</h2>{paragraphs(s["paragraphs"])}' for s in p['sections'])
-    return (f'<!doctype html><html lang="{LOCALE}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+    return (f'<!doctype html><html lang="{LOCALE}"><head><meta charset="utf-8">{page_policy()}<meta name="viewport" content="width=device-width, initial-scale=1">'
             f'<meta name="robots" content="{robots("privacy.html")}"><meta name="description" content="{p["description"]}">{share_meta("privacy.html", p["title"] + " | " + NAME, p["description"])}{structured("privacy.html", p["title"], p["description"])}'
             f'<title>{p["title"]} | {NAME}</title>{head_assets()}</head><body><header class="site-header article-header">'
             f'<div class="wrap header-inner">{brand("index.html")}<a class="back-link" href="index.html">{T["back_link"]}</a></div></header>'
@@ -283,7 +326,7 @@ def privacy_page() -> str:
 
 def not_found_page() -> str:
     n = C['not_found']
-    return (f'<!doctype html><html lang="{LOCALE}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+    return (f'<!doctype html><html lang="{LOCALE}"><head><meta charset="utf-8">{security_policy(NOT_FOUND_STYLE)}<meta name="viewport" content="width=device-width, initial-scale=1">'
             f'<meta name="description" content="{n["description"]}"><meta name="robots" content="{robots("404.html")}"><title>{n["title"]} | {NAME}</title>'
             f'<style>{NOT_FOUND_STYLE}</style></head><body><main><small>{n["label"]}</small><h1>{n["heading"]}</h1><p>{n["text"]}</p>'
             f'<p><a id="home-link" href="{e(BASE or "index.html")}">{T["back_link"]}</a></p></main></body></html>\n')
@@ -301,7 +344,7 @@ def worksheet_page(r: dict) -> str:
         else:
             blocks += f'\n<div class="example-block">{paragraphs(block["example"])}</div>'
     description = sc.fill(r['description'], tokens)
-    return (f'<!doctype html><html lang="{LOCALE}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+    return (f'<!doctype html><html lang="{LOCALE}"><head><meta charset="utf-8">{page_policy()}<meta name="viewport" content="width=device-width, initial-scale=1">'
             f'<meta name="robots" content="{robots(page)}"><meta name="description" content="{description}"><meta name="theme-color" content="#183c33">{share_meta(page, r["title"] + " | " + NAME, description)}{structured(page, r["title"], description, resource(r, page, description))}'
             f'<title>{r["title"]} | {NAME}</title>{head_assets("../")}</head><body><header class="site-header article-header">'
             f'<div class="wrap header-inner">{brand("../index.html")}<a class="back-link" href="../index.html#resources">{rp["all_resources"]}</a></div></header>'
@@ -323,6 +366,7 @@ def worked_example_page(r: dict) -> str:
 <html lang="{LOCALE}">
 <head>
   <meta charset="utf-8">
+  {page_policy()}
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="{robots(page)}">
   <meta name="description" content="{description}">
@@ -388,19 +432,22 @@ def outputs() -> dict[Path, str]:
         else:
             pages[f'resources/{r["slug"]}.html'] = worked_example_page(r)
     files['robots.txt'] = ('User-agent: *\nDisallow: /\n' if PREVIEW else 'User-agent: *\nAllow: /\n') + (f'\nSitemap: {BASE}sitemap.xml\n' if not PREVIEW and BASE else '')
+    tools = {ROOT / 'tools' / 'social-card.html': social_card()}
     if BASE:
         files['llms.txt'] = llms_text()
-        urls = [BASE if page == 'index.html' else BASE + page for page in sorted(pages) if page != '404.html']
-        files['sitemap.xml'] = '\n'.join(['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-                                         + [f'  <url><loc>{e(url)}</loc></url>' for url in urls] + ['</urlset>', ''])
-    return {SITE / name: text for name, text in (pages | files).items()} | {ROOT / 'tools' / 'social-card.html': social_card()}
+        # Each sitemap entry gives the day its page's content last changed; tools/page-dates.json remembers it.
+        urls = {(BASE if page == 'index.html' else BASE + page): text for page, text in sorted(pages.items()) if page != '404.html'}
+        files['sitemap.xml'], tools[ROOT / 'tools' / 'page-dates.json'] = sc.dated_sitemap(urls, ROOT / 'tools' / 'page-dates.json')
+        # IndexNow (Bing and others): the key file proves the site sends the change notices of tools/indexnow.py.
+        files[f'{CONFIG["indexnow_key"]}.txt'] = CONFIG['indexnow_key']
+    return {SITE / name: text for name, text in (pages | files).items()} | tools
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--check', action='store_true', help='fail if any generated file is out of date')
     args = parser.parse_args()
-    owned = {*SITE.glob('*.html'), *SITE.glob('resources/*.html'), *SITE.glob('resources/*.txt'), SITE / 'sitemap.xml'}
+    owned = {*SITE.glob('*.html'), *SITE.glob('*.txt'), *SITE.glob('resources/*.html'), *SITE.glob('resources/*.txt'), SITE / 'sitemap.xml'}
     owned = {path for path in owned if path.exists()}
     problems = sc.write_outputs(outputs(), args.check, owned)
     if args.check:

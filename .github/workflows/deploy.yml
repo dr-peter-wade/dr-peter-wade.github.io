@@ -1,4 +1,5 @@
-# Adapted from GitHub's official static Pages starter workflow, checked 2026-09-28.
+# Adapted from GitHub's official static Pages starter workflow, checked 2026-09-28; actions updated to
+# their Node.js 24 releases on 2026-10-14.
 name: Deploy Peter Wade educational site
 on:
   push:
@@ -19,15 +20,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Validate local website files
         run: python3 tools/check_site.py
       - name: Set up Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
       - name: Upload only the public website
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site
+          # Since v4 hidden files are left out unless included; keep publishing site/.nojekyll as before.
+          include-hidden-files: true
       - name: Deploy to Pages
         id: deployment
         uses: actions/deploy-pages@v5

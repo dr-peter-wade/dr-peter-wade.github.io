@@ -56,6 +56,8 @@ The workflow validates local files, uploads only `site/`, and deploys that artif
 
 The Actions run and Pages settings show the published URL: `https://dr-peter-wade.github.io/`. The repository is an organisation site, so the address has no project path.
 
+Once the run succeeds, tell the IndexNow search engines (Bing, and through it ChatGPT search and Copilot) which pages changed. From the workspace root, `python3 tools/indexnow.py education` sends the pages whose sitemap `<lastmod>` is today. The engines confirm the notice through the key file `site/<config.indexnow_key>.txt`.
+
 Sources: [Creating a Pages site](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site), [Custom workflows](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
 
 ## 5. Approve contact and search indexing
